@@ -329,8 +329,8 @@ MATRIX_LR = 0.04
 SCALAR_LR = 0.5
 WEIGHT_DECAY = 0.2
 ADAM_BETAS = (0.8, 0.95)
-WARMUP_RATIO = 0.1  # 10% warmup for training stability
-WARMDOWN_RATIO = 0.5
+WARMUP_RATIO = 0.0  # no warmup, maximize training steps
+WARMDOWN_RATIO = 0.7  # longer cooldown for better convergence
 FINAL_LR_FRAC = 0.0
 
 # Model size
