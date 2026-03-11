@@ -322,7 +322,7 @@ _hp_defaults = suggest_hyperparameters(_hw_info)
 ASPECT_RATIO = 64
 HEAD_DIM = 128
 WINDOW_PATTERN = "SSSL"
-MLP_RATIO = 3.0  # narrower MLP for faster steps
+MLP_RATIO = 2.5  # even narrower MLP for more steps
 
 # Optimization
 TOTAL_BATCH_SIZE = 16384  # 8x smaller → even more steps
