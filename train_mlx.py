@@ -322,7 +322,7 @@ HEAD_DIM = 128
 WINDOW_PATTERN = "SSSL"
 
 # Optimization
-TOTAL_BATCH_SIZE = 32768  # 4x smaller → more steps in time budget
+TOTAL_BATCH_SIZE = 16384  # 8x smaller → even more steps
 EMBEDDING_LR = 0.6
 UNEMBEDDING_LR = 0.004
 MATRIX_LR = 0.04
@@ -335,7 +335,7 @@ FINAL_LR_FRAC = 0.0
 
 # Model size
 DEPTH = _hp_defaults['depth']
-DEVICE_BATCH_SIZE = 16  # smaller micro-batch for faster steps
+DEVICE_BATCH_SIZE = 8  # even smaller for faster steps
 
 # ---------------------------------------------------------------------------
 # Setup
