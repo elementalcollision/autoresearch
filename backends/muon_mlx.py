@@ -173,7 +173,7 @@ class MuonAdamWMLX:
                 smb_shape = list(shape[:-1]) + [1]
             else:
                 smb_shape = list(shape[:-2]) + [1, N]
-            state['second_momentum_buffer'] = mx.zeros(smb_shape, dtype=stacked_grads.dtype)
+            state['second_momentum_buffer'] = mx.zeros(smb_shape, dtype=mx.float32)
 
         # Nesterov momentum
         momentum = mx.array(momentum_val, dtype=stacked_grads.dtype)
@@ -183,23 +183,23 @@ class MuonAdamWMLX:
         # Polar express orthogonalization
         g = newton_schulz_orthogonalize(g, ns_steps)
 
-        # NorMuon variance reduction
-        beta2_val = mx.array(beta2, dtype=g.dtype)
-        v_mean = (g.astype(mx.float32) ** 2).mean(axis=red_dim, keepdims=True)
+        # NorMuon variance reduction — all in float32 to avoid bf16 overflow
+        g_f32 = g.astype(mx.float32)
+        beta2_f32 = mx.array(beta2, dtype=mx.float32)
+        v_mean = (g_f32 ** 2).mean(axis=red_dim, keepdims=True)
         red_dim_size = g.shape[red_dim]
         v_norm_sq = v_mean.sum(axis=(-2, -1), keepdims=True) * red_dim_size
         v_norm = mx.sqrt(v_norm_sq)
 
-        smb = state['second_momentum_buffer']
-        state['second_momentum_buffer'] = (
-            beta2_val * smb + (1 - beta2_val) * v_mean.astype(smb.dtype)
-        )
+        smb_f32 = state['second_momentum_buffer']  # already float32
+        smb_f32 = smb_f32 + (1 - beta2_f32) * (v_mean - smb_f32)
+        state['second_momentum_buffer'] = smb_f32
 
-        step_size = mx.rsqrt(mx.maximum(state['second_momentum_buffer'], mx.array(1e-10)))
-        scaled_sq_sum = (v_mean * red_dim_size) * (step_size.astype(mx.float32) ** 2)
+        step_size = mx.rsqrt(mx.maximum(smb_f32, mx.array(1e-10)))
+        scaled_sq_sum = (v_mean * red_dim_size) * (step_size ** 2)
         v_norm_new = mx.sqrt(scaled_sq_sum.sum(axis=(-2, -1), keepdims=True))
         final_scale = step_size * (v_norm / mx.maximum(v_norm_new, mx.array(1e-10)))
-        g = g * final_scale.astype(g.dtype)
+        g = (g_f32 * final_scale).astype(g.dtype)
 
         # Cautious weight decay + parameter update
         lr_val = mx.array(lr, dtype=g.dtype)

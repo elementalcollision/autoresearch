@@ -198,9 +198,9 @@ class GPT(nn.Module):
             window = ws[0] if isinstance(ws, tuple) else ws
             T = config.sequence_len
             if window > 0 and window < T:
-                self._masks[window] = create_sliding_window_mask(T, window, mx.bfloat16)
+                self._masks[window] = create_sliding_window_mask(T, window, mx.float32)
             else:
-                self._masks[window] = create_causal_mask(T, mx.bfloat16)
+                self._masks[window] = create_causal_mask(T, mx.float32)
 
     def init_weights(self):
         """Initialize weights matching the original."""
@@ -476,7 +476,7 @@ while True:
     train_loss_f = train_loss_val.item()
 
     # Fast fail
-    if train_loss_f > 100:
+    if math.isnan(train_loss_f) or train_loss_f > 100:
         print("FAIL")
         exit(1)
 
