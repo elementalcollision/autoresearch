@@ -1,0 +1,26 @@
+commit	val_bpb	memory_gb	status	description
+0dc8208	2.094438	94.3	keep	baseline (no changes)
+b24dd14	1.853561	25.9	keep	batch 32768, dev_batch 16, warmup 0.1
+dcf27b8	2.420212	52.7	discard	depth 12 (too slow, too few counted steps)
+a085cec	1.749741	25.9	keep	no warmup, cooldown 0.7
+2298d5f	1.673052	13.2	keep	batch 16384, dev_batch 8
+f86db47	1.742611	7.0	discard	batch 8192 (too noisy, fewer tokens)
+e444549	1.969977	13.2	discard	halve LRs (too low, under-trains)
+e58db13	1.960932	19.6	discard	depth 10 (too slow, fewer steps)
+11f05ea	1.727526	13.2	discard	MATRIX_LR 0.06 (slightly worse)
+a0465e3	1.705938	13.2	discard	cooldown 0.5 (0.7 was better)
+a7d9238	1.735040	13.2	discard	cooldown 0.85 (too much, 0.7 optimal)
+9aa3b5b	1.713603	13.2	discard	weight_decay 0.05 (0.2 was better)
+e9c2ca8	1.704158	12.9	discard	GQA n_kv=n_head//2 (fewer params hurts)
+c1d62fd	1.668271	12.4	keep	MLP ratio 3x (faster steps, slight improvement)
+afbe72c	1.812235	17.5	discard	wider model 768-dim (too slow)
+b9111f3	1.697912	12.4	discard	EMBEDDING_LR 1.0 (worse)
+6a41e2c	1.654370	12.1	keep	MLP ratio 2.5x (more steps, improvement)
+10c7fd8	1.622138	11.7	keep	MLP ratio 2.0x (205 steps, best so far)
+c3605da	1.621438	11.3	keep	MLP ratio 1.5x (marginal improvement)
+0196fce	1.775817	11.4	discard	no value embeds (too much capacity loss)
+5f0b644	1.801975	15.8	discard	depth=9 MLP=2x (too slow)
+76bf2e6	1.719316	16.3	discard	HEAD_DIM=64 (slower, worse)
+3319a0b	1.631718	11.3	discard	softcap 10 (too restrictive)
+cac38ae	1.705675	11.3	discard	softcap 20 (worse + slower)
+716cac2	1.749827	11.3	discard	no softcap (much worse)
