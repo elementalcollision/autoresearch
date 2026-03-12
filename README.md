@@ -4,6 +4,8 @@ Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/ka
 
 ![MLX training run on Apple M1 Max](mlx_run.png)
 
+> **Latest results**: [25 experiments on M1 Max](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) — val_bpb **2.094 → 1.621** (−22.6%) via batch size tuning and MLP ratio optimization.
+
 ## What is this?
 
 [Autoresearch](https://github.com/karpathy/autoresearch) is Karpathy's framework for autonomous AI-driven LLM training experiments. An AI agent modifies the training code, runs a 5-minute experiment, checks if results improved, keeps or discards, and repeats overnight.
