@@ -1,0 +1,18 @@
+commit	val_bpb	memory_gb	status	description
+baseline	2.026063	32.1	baseline	Unmodified master, Pro tier defaults (depth=6, batch=16, total=64K, MLP=4x)
+bc5cdc1	1.439990	8.4	keep	exp1: MLP 1.5x + batch 16K/8 + warmdown 0.7 (all mar11 wins)
+1d83776	1.429396	4.5	keep	exp4: Batch 8K/4 — more steps, slightly better
+ad65c98	1.505310	6.0	discard	exp5: depth=7 — too slow, fewer steps hurt convergence
+fc3deb2	1.473686	5.4	discard	exp6: ASPECT_RATIO=80 — wider model too slow, fewer steps
+27b9d9f	1.429607	4.4	discard	exp7: MLP_RATIO=1.0 — tied with 1.5x, no benefit
+71de4f7	1.457287	4.5	discard	exp8a: MATRIX_LR=0.05 — too high, worse convergence
+1ddabf6	1.437987	4.5	discard	exp8b: MATRIX_LR=0.03 — slightly worse, default 0.04 optimal
+cd09729	1.436647	4.5	discard	exp9a: WARMDOWN_RATIO=0.75 — slightly worse than 0.7
+8f00506	1.432641	4.5	discard	exp9b: WARMDOWN_RATIO=0.65 — slightly worse than 0.7
+cc51630	1.432399	4.5	discard	exp10a: Window SL — more long-range, slightly worse
+9ab893a	1.434336	4.5	discard	exp10b: Window SSSSL — more short windows, slightly worse
+000e04d	1.430230	4.5	discard	exp11: Softcap 12 — tied, no meaningful improvement
+b0df72e	1.452558	2.8	discard	exp12: Batch 4K/2 — too noisy despite 1372 steps
+398387c	1.443693	4.5	discard	exp13: EMBEDDING_LR=0.8 — worse than default 0.6
+24408f3	1.433078	4.5	discard	exp14: WEIGHT_DECAY=0.15 — slightly worse than 0.2
+7186347	1.435216	4.4	discard	exp15: MLP_RATIO=1.25 — worse than 1.5, not the sweet spot
