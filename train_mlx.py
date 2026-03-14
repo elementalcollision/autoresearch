@@ -325,7 +325,7 @@ MLP_RATIO = 1.5  # narrow MLP (mar11: 4x → 1.5x = fewer params, faster steps)
 WINDOW_PATTERN = "SSSL"
 
 # Optimization
-TOTAL_BATCH_SIZE = 16384  # smaller batch = more steps in 5 min (mar11 finding)
+TOTAL_BATCH_SIZE = 8192  # even smaller batch = even more steps (mar11 said too noisy, re-test on M4 Pro)
 EMBEDDING_LR = 0.6
 UNEMBEDDING_LR = 0.004
 MATRIX_LR = 0.04
@@ -338,7 +338,7 @@ FINAL_LR_FRAC = 0.0
 
 # Model size
 DEPTH = _hp_defaults['depth']
-DEVICE_BATCH_SIZE = 8  # smaller device batch for faster steps (mar11 finding)
+DEVICE_BATCH_SIZE = 4  # halved with total batch to maintain grad_accum=1
 
 # ---------------------------------------------------------------------------
 # Setup
