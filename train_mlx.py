@@ -34,6 +34,7 @@ class GPTConfig:
     n_kv_head: int = 6
     n_embd: int = 768
     window_pattern: str = "SSSL"
+    mlp_ratio: float = 4.0
 
 
 def norm(x):
@@ -148,8 +149,9 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd, bias=False)
-        self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=False)
+        mlp_dim = int(config.n_embd * config.mlp_ratio)
+        self.c_fc = nn.Linear(config.n_embd, mlp_dim, bias=False)
+        self.c_proj = nn.Linear(mlp_dim, config.n_embd, bias=False)
 
     def __call__(self, x):
         x = self.c_fc(x)
@@ -335,6 +337,7 @@ FINAL_LR_FRAC = 0.0
 
 # Model size
 DEPTH = _hp_defaults['depth']
+MLP_RATIO = 4.0
 DEVICE_BATCH_SIZE = _hp_defaults['device_batch_size']
 
 # ---------------------------------------------------------------------------
@@ -359,7 +362,7 @@ def build_model_config(depth):
     return GPTConfig(
         sequence_len=MAX_SEQ_LEN, vocab_size=vocab_size,
         n_layer=depth, n_head=num_heads, n_kv_head=num_heads, n_embd=model_dim,
-        window_pattern=WINDOW_PATTERN,
+        window_pattern=WINDOW_PATTERN, mlp_ratio=MLP_RATIO,
     )
 
 config = build_model_config(DEPTH)

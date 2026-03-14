@@ -80,7 +80,7 @@ def get_hardware_info():
     # Memory
     try:
         mem_bytes = int(subprocess.check_output(
-            ["sysctl", "-n", "hw.memsize"], text=True).strip())
+            ["/usr/sbin/sysctl", "-n", "hw.memsize"], text=True).strip())
         info["memory_gb"] = mem_bytes / (1024 ** 3)
     except (subprocess.CalledProcessError, ValueError):
         pass
@@ -88,7 +88,7 @@ def get_hardware_info():
     # Chip name
     try:
         brand = subprocess.check_output(
-            ["sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip()
+            ["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip()
         info["chip_name"] = brand
     except subprocess.CalledProcessError:
         pass
@@ -104,14 +104,14 @@ def get_hardware_info():
     elif "pro" in chip:
         info["chip_tier"] = "pro"
         info["gpu_cores"] = 18
-    elif "m1" in chip or "m2" in chip or "m3" in chip or "m4" in chip:
+    elif re.search(r"m[1-9]", chip):
         info["chip_tier"] = "base"
         info["gpu_cores"] = 10
     else:
         info["chip_tier"] = "unknown"
 
     # Refine GPU core estimates by specific chip model
-    m = re.search(r"(m[1-5])\s*(pro|max|ultra)?", chip)
+    m = re.search(r"(m[1-9])\s*(pro|max|ultra)?", chip)
     if m:
         gen = m.group(1)
         tier = m.group(2) or "base"
@@ -121,6 +121,7 @@ def get_hardware_info():
             ("m2", "base"): 10, ("m2", "pro"): 19, ("m2", "max"): 38, ("m2", "ultra"): 76,
             ("m3", "base"): 10, ("m3", "pro"): 18, ("m3", "max"): 40, ("m3", "ultra"): 76,
             ("m4", "base"): 10, ("m4", "pro"): 20, ("m4", "max"): 40, ("m4", "ultra"): 80,
+            ("m5", "base"): 10, ("m5", "pro"): 20, ("m5", "max"): 40, ("m5", "ultra"): 80,
         }
         info["gpu_cores"] = gpu_core_map.get((gen, tier), info["gpu_cores"])
 
@@ -140,7 +141,7 @@ def get_peak_flops(hw_info=None):
 
     # Rough bf16 TFLOPS estimates per GPU core (varies by generation)
     # M3/M4 cores are ~30% faster than M1/M2 cores
-    m = re.search(r"(m[1-5])", chip)
+    m = re.search(r"(m[1-9])", chip)
     gen = m.group(1) if m else "m4"
 
     flops_per_core = {
@@ -148,6 +149,7 @@ def get_peak_flops(hw_info=None):
         "m2": 0.55e12,
         "m3": 0.65e12,
         "m4": 0.7e12,
+        "m5": 0.85e12,
     }.get(gen, 0.65e12)
 
     return gpu_cores * flops_per_core
