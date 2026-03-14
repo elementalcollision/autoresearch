@@ -33,6 +33,7 @@ class GPTConfig:
     n_head: int = 6
     n_kv_head: int = 6
     n_embd: int = 768
+    mlp_ratio: float = 4.0
     window_pattern: str = "SSSL"
 
 
@@ -148,8 +149,9 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd, bias=False)
-        self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=False)
+        mlp_dim = int(config.n_embd * config.mlp_ratio)
+        self.c_fc = nn.Linear(config.n_embd, mlp_dim, bias=False)
+        self.c_proj = nn.Linear(mlp_dim, config.n_embd, bias=False)
 
     def __call__(self, x):
         x = self.c_fc(x)
@@ -319,10 +321,11 @@ _hp_defaults = suggest_hyperparameters(_hw_info)
 # Model architecture
 ASPECT_RATIO = 64
 HEAD_DIM = 128
+MLP_RATIO = 1.5  # narrow MLP (mar11: 4x → 1.5x = fewer params, faster steps)
 WINDOW_PATTERN = "SSSL"
 
 # Optimization
-TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
+TOTAL_BATCH_SIZE = 16384  # smaller batch = more steps in 5 min (mar11 finding)
 EMBEDDING_LR = 0.6
 UNEMBEDDING_LR = 0.004
 MATRIX_LR = 0.04
@@ -330,12 +333,12 @@ SCALAR_LR = 0.5
 WEIGHT_DECAY = 0.2
 ADAM_BETAS = (0.8, 0.95)
 WARMUP_RATIO = 0.0
-WARMDOWN_RATIO = 0.5
+WARMDOWN_RATIO = 0.7  # longer cooldown for better convergence (mar11 finding)
 FINAL_LR_FRAC = 0.0
 
 # Model size
 DEPTH = _hp_defaults['depth']
-DEVICE_BATCH_SIZE = _hp_defaults['device_batch_size']
+DEVICE_BATCH_SIZE = 8  # smaller device batch for faster steps (mar11 finding)
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -359,6 +362,7 @@ def build_model_config(depth):
     return GPTConfig(
         sequence_len=MAX_SEQ_LEN, vocab_size=vocab_size,
         n_layer=depth, n_head=num_heads, n_kv_head=num_heads, n_embd=model_dim,
+        mlp_ratio=MLP_RATIO,
         window_pattern=WINDOW_PATTERN,
     )
 
