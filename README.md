@@ -2,15 +2,22 @@
 
 Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/karpathy/autoresearch) with full Muon optimizer support on both PyTorch MPS and MLX.
 
-![MLX training run on Apple M1 Max](mlx_run.png)
+![Experiment Results: M1 Max vs M4 Pro](experiment_results.png)
 
-> **Latest results**: [25 experiments on M1 Max](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) — val_bpb **2.094 → 1.621** (−22.6%) via batch size tuning and MLP ratio optimization. The optimized code lives on the [`autoresearch/mar11`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar11) branch.
+> **Latest results**: See the [experiment wiki](https://github.com/elementalcollision/autoresearch/wiki) for full details per chip.
+>
+> | Chip | Date | Best val_bpb | Improvement | Branch |
+> |------|------|-------------|-------------|--------|
+> | **M4 Pro** (24 GB) | [Mar 14](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-14-2026-M4-Pro) | **1.429** | −29.5% | [`autoresearch/mar14`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar14) |
+> | M1 Max (64 GB) | [Mar 11](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) | 1.621 | −22.6% | [`autoresearch/mar11`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar11) |
+>
+> The M4 Pro achieved a better result with **1/3 the memory and 1/2 the GPU cores** — demonstrating that on Apple Silicon, step speed and memory efficiency matter more than raw hardware specs.
 
 ## What is this?
 
 [Autoresearch](https://github.com/karpathy/autoresearch) is Karpathy's framework for autonomous AI-driven LLM training experiments. An AI agent modifies the training code, runs a 5-minute experiment, checks if results improved, keeps or discards, and repeats overnight.
 
-The original requires an NVIDIA GPU (H100) with CUDA, FlashAttention-3, and `torch.compile`. This fork ports everything to Apple Silicon, supporting both **PyTorch MPS** and **MLX** backends. It targets M-series Max and Ultra chips (64-192GB unified memory), though it runs on any Apple Silicon Mac.
+The original requires an NVIDIA GPU (H100) with CUDA, FlashAttention-3, and `torch.compile`. This fork ports everything to Apple Silicon, supporting both **PyTorch MPS** and **MLX** backends. It runs on any Apple Silicon Mac from M1 to M4 Ultra — tested on M1 Max (64 GB) and M4 Pro (24 GB), with the M4 Pro actually achieving the best results thanks to its superior per-core performance and memory efficiency.
 
 ### Key features
 
@@ -28,16 +35,21 @@ The original requires an NVIDIA GPU (H100) with CUDA, FlashAttention-3, and `tor
 # 1. Install uv (if needed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Install dependencies (pick your backend)
-uv pip install -e '.[mlx]'    # MLX only (recommended)
-uv pip install -e '.[mps]'    # PyTorch MPS only
-uv pip install -e '.[all]'    # Both backends
+# 2. Clone the repo
+git clone https://github.com/elementalcollision/autoresearch.git
+cd autoresearch
 
-# 3. Download data and train tokenizer (one-time, ~2 min)
+# 3. Install dependencies (pick your backend)
+uv sync --extra mlx            # MLX only (recommended)
+uv sync --extra mps            # PyTorch MPS only
+uv sync --extra all            # Both backends
+
+# 4. Download data and train tokenizer (one-time, ~2 min)
 uv run prepare.py
 
-# 4. Run a training experiment (~5 min)
-uv run train.py
+# 5. Run a training experiment (~5 min)
+uv run train_mlx.py            # MLX (recommended)
+uv run train.py                # Auto-detect backend
 ```
 
 ## Backend selection
@@ -94,14 +106,25 @@ The agent reads `program.md`, establishes a baseline, then enters an autonomous 
 
 ## Hardware recommendations
 
-| Chip tier | Memory | Model depth | Device batch | Total batch | Expected perf |
-|-----------|--------|-------------|-------------|-------------|---------------|
-| Base (M1-M4) | 8-24 GB | 4 | 8 | 32K tokens | Functional, slower |
-| Pro | 18-36 GB | 6 | 16 | 64K tokens | Good |
-| Max | 36-128 GB | 8 | 32 | 128K tokens | Recommended |
-| Ultra | 64-192 GB | 10 | 64 | 256K tokens | Best |
+### Auto-detected defaults (starting points)
 
-These are the auto-detected defaults. The agent can change them during experimentation.
+| Chip tier | Memory | Model depth | Device batch | Total batch |
+|-----------|--------|-------------|-------------|-------------|
+| Base (M1-M4) | 8-24 GB | 4 | 8 | 32K tokens |
+| Pro | 18-36 GB | 6 | 16 | 64K tokens |
+| Max | 36-128 GB | 8 | 32 | 128K tokens |
+| Ultra | 64-192 GB | 10 | 64 | 256K tokens |
+
+These are conservative starting points. The agent will aggressively optimize them during experimentation — the defaults are intentionally *not* optimal.
+
+### Optimized results (after autonomous tuning)
+
+| Chip | Memory | Best val_bpb | Optimized batch | Peak mem | Steps |
+|------|--------|-------------|----------------|----------|-------|
+| **M4 Pro** | 24 GB | **1.429** | 8K total, 4 device | 4.5 GB | 751 |
+| M1 Max | 64 GB | 1.621 | 16K total, 8 device | 11.3 GB | ~210 |
+
+**Key insight**: Smaller batches dramatically improve results because they yield more optimizer steps within the fixed 5-minute time budget. The agent consistently discovers that *throughput beats capacity* — a smaller, faster model trained for more steps outperforms a larger model trained for fewer steps.
 
 ## Differences from the original
 
@@ -121,20 +144,20 @@ After a 5-minute run, the script prints:
 
 ```
 ---
-val_bpb:          0.997900
-training_seconds: 300.1
-total_seconds:    325.9
-peak_vram_mb:     8192.0
-mfu_percent:      45.20
-total_tokens_M:   125.0
-num_steps:        250
-num_params_M:     50.3
-depth:            8
+val_bpb:          1.429396
+training_seconds: 300.2
+total_seconds:    341.8
+peak_vram_mb:     4510.8
+mfu_percent:      13.54
+total_tokens_M:   6.2
+num_steps:        751
+num_params_M:     21.9
+depth:            6
 backend:          mlx
-chip:             Apple M4 Max
+chip:             Apple M4 Pro
 ```
 
-The key metric is **val_bpb** (validation bits per byte) -- lower is better.
+The key metric is **val_bpb** (validation bits per byte) — lower is better. The example above is an actual run from the M4 Pro optimized configuration.
 
 ## Technical notes
 
@@ -145,11 +168,11 @@ The key metric is **val_bpb** (validation bits per byte) -- lower is better.
 - Sliding window attention via manual mask + SDPA
 
 ### MLX backend
-- Uses `mx.compile` for kernel fusion on the training step
 - Newton-Schulz orthogonalization uses `mx.swapaxes` for matrix transpose
 - Gradient accumulation via `tree_map`
 - Explicit `mx.eval()` calls for lazy evaluation control
 - `nn.value_and_grad()` replaces PyTorch's `.backward()`
+- Aggressive GC management (`gc.freeze()` after warmup) to minimize overhead
 
 ### Muon optimizer
 The Muon optimizer combines Newton-Schulz orthogonalization (Polar Express) with Nesterov momentum, NorMuon variance reduction, and cautious weight decay. It is applied to 2D matrix parameters in transformer blocks, while embeddings and scalars use standard AdamW. The MLX implementation is a complete port of the original CUDA version, adapted for MLX's lazy evaluation model.
