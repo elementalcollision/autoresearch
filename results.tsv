@@ -9,3 +9,4 @@ exp6	TOTAL_BATCH=16384 DEV_BATCH=8	1.356	13.2	26500	18.3	488	discard	more steps 
 exp7	MATRIX_LR=0.06 (from 0.04)	1.327	26.1	32200	22.3	301	keep	new best! higher Muon LR improves convergence
 exp8	MATRIX_LR=0.08 (from 0.06)	1.328	26.1	31900	23.0	310	discard	plateau — no improvement over 0.06, revert
 exp9	WEIGHT_DECAY=0.1 (from 0.2)	1.322	26.1	32300	22.9	308	keep	new best! lower regularization helps with higher LR
+exp10	EMBEDDING_LR=0.8 (from 0.6)	1.322	26.1	32000	23.1	308	discard	no improvement, embedding LR already optimal at 0.6
