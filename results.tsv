@@ -13,3 +13,4 @@ exp10	EMBEDDING_LR=0.8 (from 0.6)	1.322	26.1	32000	23.1	308	discard	no improveme
 exp11	WARMUP_RATIO=0.05 (from 0.0)	1.344	26.1	33000	23.1	310	discard	warmup wastes steps at lrm=0.00, worse convergence
 exp12	WARMDOWN_RATIO=0.6 (from 0.5)	1.320	26.1	33400	23.2	310	keep	new best! slightly longer cooldown helps with tuned LR
 exp13	WARMDOWN_RATIO=0.7 (from 0.6)	1.323	26.1	33400	23.2	310	discard	0.7 too much cooldown even with tuned LR, 0.6 is sweet spot
+exp14	UNEMBEDDING_LR=0.006 (from 0.004)	1.320	26.1	33800	23.4	312	keep	marginal improvement (1.3196 vs 1.3205), higher unembed LR helps slightly
