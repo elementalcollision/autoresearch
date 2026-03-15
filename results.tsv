@@ -7,3 +7,4 @@ exp4	DEPTH=10 (from 8)	1.599	38.1	15500	19.6	153	discard	too slow (2.1s/step), f
 exp5	MLP_RATIO=2.5 (from 4.0)	1.363	23.8	28100	16.7	269	discard	less capacity (44M vs 50M), not enough extra steps to compensate
 exp6	TOTAL_BATCH=16384 DEV_BATCH=8	1.356	13.2	26500	18.3	488	discard	more steps (488 vs 299) but lower MFU, batch too small to compensate
 exp7	MATRIX_LR=0.06 (from 0.04)	1.327	26.1	32200	22.3	301	keep	new best! higher Muon LR improves convergence
+exp8	MATRIX_LR=0.08 (from 0.06)	1.328	26.1	31900	23.0	310	discard	plateau — no improvement over 0.06, revert
