@@ -12,3 +12,4 @@ exp9	WEIGHT_DECAY=0.1 (from 0.2)	1.322	26.1	32300	22.9	308	keep	new best! lower 
 exp10	EMBEDDING_LR=0.8 (from 0.6)	1.322	26.1	32000	23.1	308	discard	no improvement, embedding LR already optimal at 0.6
 exp11	WARMUP_RATIO=0.05 (from 0.0)	1.344	26.1	33000	23.1	310	discard	warmup wastes steps at lrm=0.00, worse convergence
 exp12	WARMDOWN_RATIO=0.6 (from 0.5)	1.320	26.1	33400	23.2	310	keep	new best! slightly longer cooldown helps with tuned LR
+exp13	WARMDOWN_RATIO=0.7 (from 0.6)	1.323	26.1	33400	23.2	310	discard	0.7 too much cooldown even with tuned LR, 0.6 is sweet spot
