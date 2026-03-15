@@ -2,28 +2,29 @@
 
 Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/karpathy/autoresearch) with full Muon optimizer support on both PyTorch MPS and MLX.
 
-![Experiment Results: M1 Max vs M4 Pro](experiment_results.png)
+![Experiment Results: M1 Max vs M4 Pro vs M5 Max](experiment_results.png)
 
 > **Latest results**: See the [experiment wiki](https://github.com/elementalcollision/autoresearch/wiki) for full details per chip.
 >
 > | Chip | Date | Best val_bpb | Improvement | Branch |
 > |------|------|-------------|-------------|--------|
-> | **M4 Pro** (24 GB) | [Mar 14](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-14-2026-M4-Pro) | **1.429** | −29.5% | [`autoresearch/mar14`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar14) |
+> | **M5 Max** (64 GB) | [Mar 15](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-15-2026-M5-Max) | **1.320** | −36.4% | [`autoresearch/mar14-m5max`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar14-m5max) |
+> | M4 Pro (24 GB) | [Mar 14](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-14-2026-M4-Pro) | 1.429 | −29.5% | [`autoresearch/mar14`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar14) |
 > | M1 Max (64 GB) | [Mar 11](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) | 1.621 | −22.6% | [`autoresearch/mar11`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar11) |
 >
-> The M4 Pro achieved a better result with **1/3 the memory and 1/2 the GPU cores** — demonstrating that on Apple Silicon, step speed and memory efficiency matter more than raw hardware specs.
+> Each generation finds different optimal trade-offs: M1 Max narrowed MLP (4x→1.5x), M4 Pro shrank batches (64K→8K), M5 Max tuned optimization (LR 0.04→0.06, WD 0.2→0.1) while keeping the full architecture. Step count within the 5-minute budget remains the dominant factor across all chips.
 
 ## What is this?
 
 [Autoresearch](https://github.com/karpathy/autoresearch) is Karpathy's framework for autonomous AI-driven LLM training experiments. An AI agent modifies the training code, runs a 5-minute experiment, checks if results improved, keeps or discards, and repeats overnight.
 
-The original requires an NVIDIA GPU (H100) with CUDA, FlashAttention-3, and `torch.compile`. This fork ports everything to Apple Silicon, supporting both **PyTorch MPS** and **MLX** backends. It runs on any Apple Silicon Mac from M1 to M4 Ultra — tested on M1 Max (64 GB) and M4 Pro (24 GB), with the M4 Pro actually achieving the best results thanks to its superior per-core performance and memory efficiency.
+The original requires an NVIDIA GPU (H100) with CUDA, FlashAttention-3, and `torch.compile`. This fork ports everything to Apple Silicon, supporting both **PyTorch MPS** and **MLX** backends. It runs on any Apple Silicon Mac from M1 to M5 Ultra — tested on M1 Max (64 GB), M4 Pro (24 GB), and M5 Max (64 GB), with the M5 Max achieving the best results thanks to its superior compute throughput and GPU Neural Accelerators.
 
 ### Key features
 
 - **Dual backend**: PyTorch MPS and Apple MLX, auto-detected or manually selected
 - **Full Muon optimizer on both backends**: Newton-Schulz (Polar Express) orthogonalization, Nesterov momentum, NorMuon variance reduction, cautious weight decay. The MLX port is a novel implementation that doesn't exist in any public fork.
-- **Hardware auto-detection**: Identifies chip generation (M1-M4), tier (base/Pro/Max/Ultra), GPU core count, and memory. Scales hyperparameters accordingly.
+- **Hardware auto-detection**: Identifies chip generation (M1-M5), tier (base/Pro/Max/Ultra), GPU core count, and memory. Scales hyperparameters accordingly.
 - **Hardware-adaptive defaults**: Batch size, model depth, and total batch size tuned per chip tier
 - **No CUDA dependencies**: Pure Apple Silicon. FlashAttention-3 replaced with PyTorch SDPA (MPS) and native attention (MLX).
 
@@ -110,7 +111,7 @@ The agent reads `program.md`, establishes a baseline, then enters an autonomous 
 
 | Chip tier | Memory | Model depth | Device batch | Total batch |
 |-----------|--------|-------------|-------------|-------------|
-| Base (M1-M4) | 8-24 GB | 4 | 8 | 32K tokens |
+| Base (M1-M5) | 8-24 GB | 4 | 8 | 32K tokens |
 | Pro | 18-36 GB | 6 | 16 | 64K tokens |
 | Max | 36-128 GB | 8 | 32 | 128K tokens |
 | Ultra | 64-192 GB | 10 | 64 | 256K tokens |
@@ -121,10 +122,11 @@ These are conservative starting points. The agent will aggressively optimize the
 
 | Chip | Memory | Best val_bpb | Optimized batch | Peak mem | Steps |
 |------|--------|-------------|----------------|----------|-------|
-| **M4 Pro** | 24 GB | **1.429** | 8K total, 4 device | 4.5 GB | 751 |
+| **M5 Max** | 64 GB | **1.320** | 32K total, 16 device | 26.1 GB | 312 |
+| M4 Pro | 24 GB | 1.429 | 8K total, 4 device | 4.5 GB | 751 |
 | M1 Max | 64 GB | 1.621 | 16K total, 8 device | 11.3 GB | ~210 |
 
-**Key insight**: Smaller batches dramatically improve results because they yield more optimizer steps within the fixed 5-minute time budget. The agent consistently discovers that *throughput beats capacity* — a smaller, faster model trained for more steps outperforms a larger model trained for fewer steps.
+**Key insight**: Maximizing optimizer steps within the fixed 5-minute time budget is the dominant factor across all chips. Each generation finds its own optimal batch size — M5 Max at 32K, M4 Pro at 8K, M1 Max at 16K — balancing gradient quality against step throughput.
 
 ## Differences from the original
 
@@ -144,20 +146,20 @@ After a 5-minute run, the script prints:
 
 ```
 ---
-val_bpb:          1.429396
-training_seconds: 300.2
-total_seconds:    341.8
-peak_vram_mb:     4510.8
-mfu_percent:      13.54
-total_tokens_M:   6.2
-num_steps:        751
-num_params_M:     21.9
-depth:            6
+val_bpb:          1.319639
+training_seconds: 300.7
+total_seconds:    398.4
+peak_vram_mb:     26742.3
+mfu_percent:      23.35
+total_tokens_M:   10.2
+num_steps:        312
+num_params_M:     50.3
+depth:            8
 backend:          mlx
-chip:             Apple M4 Pro
+chip:             Apple M5 Max
 ```
 
-The key metric is **val_bpb** (validation bits per byte) — lower is better. The example above is an actual run from the M4 Pro optimized configuration.
+The key metric is **val_bpb** (validation bits per byte) — lower is better. The example above is an actual run from the M5 Max optimized configuration.
 
 ## Technical notes
 
