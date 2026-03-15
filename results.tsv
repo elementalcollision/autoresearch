@@ -1,2 +1,3 @@
 exp	description	val_bpb	peak_mem_gb	tok_sec	mfu	steps	status	notes
 exp0	baseline defaults (depth=8 batch=131072 dev=32 mlp=4.0)	2.075	94.2	1400	1.2	15	baseline	95s/step, 2 grad_accum, swapping to disk
+exp1	TOTAL_BATCH=65536 (2^16)	1.541	51.7	30800	21.7	152	keep	10x more steps, fits in 64GB, already beats M1 Max best
