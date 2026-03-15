@@ -336,8 +336,8 @@ WARMDOWN_RATIO = 0.5
 FINAL_LR_FRAC = 0.0
 
 # Model size
-DEPTH = 10
-MLP_RATIO = 4.0
+DEPTH = 8
+MLP_RATIO = 2.5
 DEVICE_BATCH_SIZE = 16
 
 # ---------------------------------------------------------------------------
