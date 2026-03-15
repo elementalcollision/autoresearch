@@ -324,7 +324,7 @@ HEAD_DIM = 128
 WINDOW_PATTERN = "SSSL"
 
 # Optimization
-TOTAL_BATCH_SIZE = 2**16  # 65536
+TOTAL_BATCH_SIZE = 2**15  # 32768
 EMBEDDING_LR = 0.6
 UNEMBEDDING_LR = 0.004
 MATRIX_LR = 0.04
@@ -338,7 +338,7 @@ FINAL_LR_FRAC = 0.0
 # Model size
 DEPTH = _hp_defaults['depth']
 MLP_RATIO = 4.0
-DEVICE_BATCH_SIZE = _hp_defaults['device_batch_size']
+DEVICE_BATCH_SIZE = 16
 
 # ---------------------------------------------------------------------------
 # Setup
