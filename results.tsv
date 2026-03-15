@@ -14,3 +14,4 @@ exp11	WARMUP_RATIO=0.05 (from 0.0)	1.344	26.1	33000	23.1	310	discard	warmup wast
 exp12	WARMDOWN_RATIO=0.6 (from 0.5)	1.320	26.1	33400	23.2	310	keep	new best! slightly longer cooldown helps with tuned LR
 exp13	WARMDOWN_RATIO=0.7 (from 0.6)	1.323	26.1	33400	23.2	310	discard	0.7 too much cooldown even with tuned LR, 0.6 is sweet spot
 exp14	UNEMBEDDING_LR=0.006 (from 0.004)	1.320	26.1	33800	23.4	312	keep	marginal improvement (1.3196 vs 1.3205), higher unembed LR helps slightly
+exp15	DEPTH=9 (from 8)	1.434	35.1	20500	23.8	200	discard	81M params too slow (1.6s/step), only 200 steps vs 312
