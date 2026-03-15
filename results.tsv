@@ -1,1 +1,2 @@
 exp	description	val_bpb	peak_mem_gb	tok_sec	mfu	steps	status	notes
+exp0	baseline defaults (depth=8 batch=131072 dev=32 mlp=4.0)	2.075	94.2	1400	1.2	15	baseline	95s/step, 2 grad_accum, swapping to disk
