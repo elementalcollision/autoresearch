@@ -5,3 +5,4 @@ exp2	TOTAL_BATCH=32768 DEV_BATCH=16	1.335	26.1	31600	22.2	299	keep	2x steps vs e
 exp3	WARMDOWN_RATIO=0.7	1.379	26.1	25400	18.4	250	discard	worse than exp2, fewer steps, lower MFU — revert
 exp4	DEPTH=10 (from 8)	1.599	38.1	15500	19.6	153	discard	too slow (2.1s/step), fewer steps dominates extra capacity
 exp5	MLP_RATIO=2.5 (from 4.0)	1.363	23.8	28100	16.7	269	discard	less capacity (44M vs 50M), not enough extra steps to compensate
+exp6	TOTAL_BATCH=16384 DEV_BATCH=8	1.356	13.2	26500	18.3	488	discard	more steps (488 vs 299) but lower MFU, batch too small to compensate
