@@ -1,11 +1,8 @@
 """Main Textual Application for the autoresearch dashboard."""
 
-import asyncio
 import os
-import signal
 import subprocess
 import sys
-import tempfile
 import threading
 from pathlib import Path
 
@@ -37,9 +34,7 @@ class DashboardApp(App):
         self._hw_info = get_hardware_summary()
         self._proc: subprocess.Popen | None = None
         self._parser = OutputParser()
-        self._output_file: str | None = None
         self._reader_thread: threading.Thread | None = None
-        self._lines_queue: asyncio.Queue | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -65,6 +60,10 @@ class DashboardApp(App):
         log.log_message(f"Dashboard started — {self._hw_info.get('chip_name', 'Unknown')}")
         log.log_message(f"Training script: {self._training_script}")
 
+        if self._training_script == "__watch__":
+            training.set_description("Watch mode — no training")
+            return
+
         if not os.path.exists(self._training_script):
             log.log_message(f"Script not found: {self._training_script}", style="bold red")
             training.set_description(f"Error: {self._training_script} not found")
@@ -73,47 +72,9 @@ class DashboardApp(App):
         self._start_training()
 
     def _start_training(self) -> None:
-        """Launch training and start reading output."""
-        self.run_worker(self._run_training(), exclusive=True)
-
-    def _reader_worker(self, proc: subprocess.Popen, queue: asyncio.Queue, loop) -> None:
-        """Thread that reads subprocess stdout byte-by-byte to handle \\r updates.
-
-        Runs in a background thread because the training script uses
-        print(..., end="", flush=True) with \\r for in-place updates.
-        Reading byte-by-byte from the pipe ensures we get each flush immediately.
-        """
-        buffer = ""
-        try:
-            while True:
-                byte = proc.stdout.read(1)
-                if not byte:
-                    break
-                char = byte.decode('utf-8', errors='replace')
-
-                if char == '\n':
-                    if buffer.strip():
-                        loop.call_soon_threadsafe(queue.put_nowait, buffer)
-                    buffer = ""
-                elif char == '\r':
-                    if buffer.strip():
-                        loop.call_soon_threadsafe(queue.put_nowait, buffer)
-                    buffer = ""
-                else:
-                    buffer += char
-        except Exception:
-            pass
-        finally:
-            if buffer.strip():
-                loop.call_soon_threadsafe(queue.put_nowait, buffer)
-            loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
-
-    async def _run_training(self) -> None:
+        """Launch training subprocess and reader thread."""
         log = self.query_one("#activity", ActivityLog)
         training = self.query_one("#training", TrainingPanel)
-        hardware = self.query_one("#hardware", HardwarePanel)
-
-        training.set_description("Starting training...")
 
         python = sys.executable
         cmd = [python, "-u", self._training_script]  # -u for unbuffered
@@ -128,8 +89,9 @@ class DashboardApp(App):
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,  # Prevent stdin conflicts with Textual
                 env=env,
-                bufsize=0,  # unbuffered
+                bufsize=0,  # unbuffered pipe
             )
         except Exception as e:
             log.log_message(f"Failed to start: {e}", style="bold red")
@@ -137,45 +99,64 @@ class DashboardApp(App):
             return
 
         log.log_message("Process started, reading output...")
+        training.set_description("Compiling model (first step may take 30-60s)...")
 
-        # Set up async queue for cross-thread communication
-        loop = asyncio.get_event_loop()
-        self._lines_queue = asyncio.Queue()
-
-        # Start reader thread (reads byte-by-byte to handle \r delimiters)
+        # Reader thread reads byte-by-byte and uses call_from_thread to
+        # dispatch lines to the main Textual event loop. This avoids the
+        # asyncio.Queue + call_soon_threadsafe pattern which can fail when
+        # Textual manages its own event loop.
         self._reader_thread = threading.Thread(
             target=self._reader_worker,
-            args=(self._proc, self._lines_queue, loop),
+            args=(self._proc,),
             daemon=True,
         )
         self._reader_thread.start()
 
-        # Process lines from the queue
-        while True:
-            line = await self._lines_queue.get()
-            if line is None:  # sentinel = EOF
-                break
-            self._process_line(line, training, hardware, log)
+    def _reader_worker(self, proc: subprocess.Popen) -> None:
+        """Thread that reads subprocess stdout byte-by-byte to handle \\r updates.
 
-        # Wait for process to finish
-        returncode = self._proc.wait()
-        self._proc = None
+        Training scripts use print(..., end="", flush=True) with \\r for in-place
+        line updates. We read byte-by-byte to capture each flush immediately,
+        splitting on \\r and \\n to extract individual step updates.
 
-        if returncode == 0:
-            log.log_message("Training process exited successfully.", style="bold green")
-        else:
-            log.log_message(f"Training process exited with code {returncode}.", style="bold red")
+        Each complete line is dispatched to the main Textual thread via
+        call_from_thread, which is Textual's thread-safe callback mechanism.
+        """
+        buffer = ""
+        try:
+            while True:
+                byte = proc.stdout.read(1)
+                if not byte:
+                    break
+                char = byte.decode('utf-8', errors='replace')
 
-        self.action_reload_experiments()
+                if char == '\n':
+                    if buffer.strip():
+                        line = buffer
+                        self.call_from_thread(self._on_training_output, line)
+                    buffer = ""
+                elif char == '\r':
+                    if buffer.strip():
+                        line = buffer
+                        self.call_from_thread(self._on_training_output, line)
+                    buffer = ""
+                else:
+                    buffer += char
+        except Exception:
+            pass
+        finally:
+            if buffer.strip():
+                line = buffer
+                self.call_from_thread(self._on_training_output, line)
+            # Signal completion
+            self.call_from_thread(self._on_training_done, proc.wait())
 
-    def _process_line(
-        self,
-        line: str,
-        training: TrainingPanel,
-        hardware: HardwarePanel,
-        log: ActivityLog,
-    ) -> None:
-        """Process a single line/chunk of training output."""
+    def _on_training_output(self, line: str) -> None:
+        """Process a line of training output on the main thread."""
+        training = self.query_one("#training", TrainingPanel)
+        hardware = self.query_one("#hardware", HardwarePanel)
+        log = self.query_one("#activity", ActivityLog)
+
         results = self._parser.parse_line(line)
 
         for item in results:
@@ -193,6 +174,18 @@ class DashboardApp(App):
                 if "peak_vram" in item and self._parser.final:
                     hardware.update_vram(self._parser.final.peak_vram_mb)
                     training.update_final(self._parser.final)
+
+    def _on_training_done(self, returncode: int) -> None:
+        """Handle training subprocess completion on the main thread."""
+        log = self.query_one("#activity", ActivityLog)
+        self._proc = None
+
+        if returncode == 0:
+            log.log_message("Training process exited successfully.", style="bold green")
+        else:
+            log.log_message(f"Training process exited with code {returncode}.", style="bold red")
+
+        self.action_reload_experiments()
 
     def action_reload_experiments(self) -> None:
         """Reload the experiments table from results.tsv."""

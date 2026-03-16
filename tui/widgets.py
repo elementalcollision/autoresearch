@@ -32,9 +32,11 @@ class TrainingPanel(Static):
 
     def set_description(self, desc: str) -> None:
         self._description = desc
+        self._refresh_content()
 
     def set_backend(self, backend: str) -> None:
         self._backend = backend
+        self._refresh_content()
 
     def update_metrics(self, metrics: StepMetrics) -> None:
         self._metrics = metrics

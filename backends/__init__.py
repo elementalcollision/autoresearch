@@ -164,33 +164,41 @@ def suggest_hyperparameters(hw_info=None):
     mem_gb = hw_info["memory_gb"]
     tier = hw_info["chip_tier"]
 
+    # Defaults validated by characterization sessions:
+    #   M1 Max 64GB (mar11):     batch=16K, dev=8,  depth=8  → val_bpb=1.621
+    #   M4 Pro 24GB (mar14):     batch=8K,  dev=8,  depth=6  → val_bpb=1.429
+    #   M5 Max 64GB (mar14-m5):  batch=32K, dev=16, depth=8  → val_bpb=1.320
+    #
+    # Key finding: larger batches cause memory-pressure swapping even on 64GB.
+    # More gradient steps (smaller batches) consistently beats model capacity.
+
     if tier == "ultra" or mem_gb >= 128:
         return {
             "depth": 10,
-            "device_batch_size": 64,
-            "total_batch_size": 2**18,  # 256K tokens
+            "device_batch_size": 32,
+            "total_batch_size": 2**16,  # 64K tokens
             "eval_tokens_multiplier": 10,
         }
     elif tier == "max" or mem_gb >= 48:
         return {
             "depth": 8,
-            "device_batch_size": 32,
-            "total_batch_size": 2**17,  # 128K tokens
+            "device_batch_size": 16,
+            "total_batch_size": 2**15,  # 32K tokens
             "eval_tokens_multiplier": 10,
         }
     elif tier == "pro" or mem_gb >= 18:
         return {
             "depth": 6,
-            "device_batch_size": 16,
-            "total_batch_size": 2**16,  # 64K tokens
+            "device_batch_size": 8,
+            "total_batch_size": 2**13,  # 8K tokens
             "eval_tokens_multiplier": 5,
         }
     else:
         # Base M-series or low memory
         return {
             "depth": 4,
-            "device_batch_size": 8,
-            "total_batch_size": 2**15,  # 32K tokens
+            "device_batch_size": 4,
+            "total_batch_size": 2**12,  # 4K tokens
             "eval_tokens_multiplier": 3,
         }
 
