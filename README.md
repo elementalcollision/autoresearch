@@ -53,6 +53,18 @@ uv run train_mlx.py            # MLX (recommended)
 uv run train.py                # Auto-detect backend
 ```
 
+### Optional: TUI Dashboard
+
+A real-time terminal dashboard for monitoring training is available on the [`feature/tui-dashboard`](https://github.com/elementalcollision/autoresearch/tree/feature/tui-dashboard) branch:
+
+```bash
+git checkout feature/tui-dashboard
+uv sync --extra tui              # or --extra all for everything
+uv run dashboard.py              # Launches TUI + starts training
+```
+
+The dashboard shows live training progress (loss, speed, MFU, ETA), hardware info, experiment history, and an activity log — all in a terminal UI. See the [branch README](https://github.com/elementalcollision/autoresearch/tree/feature/tui-dashboard#tui-dashboard) for full details.
+
 ## Backend selection
 
 The system auto-detects the best backend (prefers MLX). Override with an environment variable:
