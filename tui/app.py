@@ -12,7 +12,10 @@ from textual.widgets import Header, Footer
 
 from tui.hardware import get_hardware_summary
 from tui.parser import OutputParser, StepMetrics
-from tui.widgets import TrainingPanel, HardwarePanel, ExperimentsTable, ActivityLog
+from tui.widgets import (
+    TrainingPanel, HardwarePanel, ExperimentsTable,
+    ExperimentStatusPanel, ActivityLog,
+)
 
 
 class DashboardApp(App):
@@ -28,13 +31,24 @@ class DashboardApp(App):
         ("r", "reload_experiments", "Reload"),
     ]
 
-    def __init__(self, training_script: str = "train_mlx.py", **kwargs):
+    def __init__(
+        self,
+        training_script: str = "train_mlx.py",
+        mode: str = "single",
+        max_experiments: int = 100,
+        run_tag: str | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._training_script = training_script
+        self._mode = mode  # "single", "agent", or "watch"
+        self._max_experiments = max_experiments
+        self._run_tag = run_tag
         self._hw_info = get_hardware_summary()
         self._proc: subprocess.Popen | None = None
         self._parser = OutputParser()
         self._reader_thread: threading.Thread | None = None
+        self._orchestrator = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -45,6 +59,10 @@ class DashboardApp(App):
             with Vertical(id="hardware-panel") as v:
                 v.border_title = "Hardware"
                 yield HardwarePanel(self._hw_info, id="hardware")
+        if self._mode == "agent":
+            with Vertical(id="experiment-status-panel") as v:
+                v.border_title = "Experiment Loop"
+                yield ExperimentStatusPanel(id="exp-status")
         with Vertical(id="experiments-panel") as v:
             v.border_title = "Experiments"
             yield ExperimentsTable(id="experiments")
@@ -58,11 +76,19 @@ class DashboardApp(App):
         training = self.query_one("#training", TrainingPanel)
 
         log.log_message(f"Dashboard started — {self._hw_info.get('chip_name', 'Unknown')}")
-        log.log_message(f"Training script: {self._training_script}")
+        log.log_message(f"Mode: {self._mode}")
 
-        if self._training_script == "__watch__":
+        if self._mode == "watch":
             training.set_description("Watch mode — no training")
             return
+
+        if self._mode == "agent":
+            log.log_message(f"Max experiments: {self._max_experiments}")
+            self._start_orchestrator()
+            return
+
+        # Single-run mode
+        log.log_message(f"Training script: {self._training_script}")
 
         if not os.path.exists(self._training_script):
             log.log_message(f"Script not found: {self._training_script}", style="bold red")
@@ -71,13 +97,17 @@ class DashboardApp(App):
 
         self._start_training()
 
+    # ------------------------------------------------------------------
+    # Single-run mode (existing behavior)
+    # ------------------------------------------------------------------
+
     def _start_training(self) -> None:
         """Launch training subprocess and reader thread."""
         log = self.query_one("#activity", ActivityLog)
         training = self.query_one("#training", TrainingPanel)
 
         python = sys.executable
-        cmd = [python, "-u", self._training_script]  # -u for unbuffered
+        cmd = [python, "-u", self._training_script]
 
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -89,9 +119,9 @@ class DashboardApp(App):
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,  # Prevent stdin conflicts with Textual
+                stdin=subprocess.DEVNULL,
                 env=env,
-                bufsize=0,  # unbuffered pipe
+                bufsize=0,
             )
         except Exception as e:
             log.log_message(f"Failed to start: {e}", style="bold red")
@@ -101,10 +131,6 @@ class DashboardApp(App):
         log.log_message("Process started, reading output...")
         training.set_description("Compiling model (first step may take 30-60s)...")
 
-        # Reader thread reads byte-by-byte and uses call_from_thread to
-        # dispatch lines to the main Textual event loop. This avoids the
-        # asyncio.Queue + call_soon_threadsafe pattern which can fail when
-        # Textual manages its own event loop.
         self._reader_thread = threading.Thread(
             target=self._reader_worker,
             args=(self._proc,),
@@ -113,15 +139,7 @@ class DashboardApp(App):
         self._reader_thread.start()
 
     def _reader_worker(self, proc: subprocess.Popen) -> None:
-        """Thread that reads subprocess stdout byte-by-byte to handle \\r updates.
-
-        Training scripts use print(..., end="", flush=True) with \\r for in-place
-        line updates. We read byte-by-byte to capture each flush immediately,
-        splitting on \\r and \\n to extract individual step updates.
-
-        Each complete line is dispatched to the main Textual thread via
-        call_from_thread, which is Textual's thread-safe callback mechanism.
-        """
+        """Thread that reads subprocess stdout byte-by-byte to handle \\r updates."""
         buffer = ""
         try:
             while True:
@@ -148,7 +166,6 @@ class DashboardApp(App):
             if buffer.strip():
                 line = buffer
                 self.call_from_thread(self._on_training_output, line)
-            # Signal completion
             self.call_from_thread(self._on_training_done, proc.wait())
 
     def _on_training_output(self, line: str) -> None:
@@ -165,12 +182,10 @@ class DashboardApp(App):
             elif isinstance(item, str):
                 log.log_message(item)
 
-                # Detect backend from startup line
                 if item.startswith("Backend:"):
                     backend = item.split("(")[0].replace("Backend:", "").strip()
                     training.set_backend(backend)
 
-                # Update VRAM from final output
                 if "peak_vram" in item and self._parser.final:
                     hardware.update_vram(self._parser.final.peak_vram_mb)
                     training.update_final(self._parser.final)
@@ -187,15 +202,120 @@ class DashboardApp(App):
 
         self.action_reload_experiments()
 
+    # ------------------------------------------------------------------
+    # Agent mode (orchestrator)
+    # ------------------------------------------------------------------
+
+    def _start_orchestrator(self) -> None:
+        """Initialize and start the experiment orchestrator."""
+        from tui.orchestrator import ExperimentOrchestrator, OrchestratorCallbacks
+
+        log = self.query_one("#activity", ActivityLog)
+        training = self.query_one("#training", TrainingPanel)
+        exp_status = self.query_one("#exp-status", ExperimentStatusPanel)
+
+        # Wire callbacks — each wraps call_from_thread for thread safety
+        def on_status(status, message):
+            self.call_from_thread(exp_status.update_status, status, message)
+            self.call_from_thread(log.log_message, f"[{status.upper()}] {message}")
+
+        def on_experiment_start(exp_num, desc, reasoning):
+            self.call_from_thread(exp_status.set_experiment_info, exp_num, desc, reasoning)
+            self.call_from_thread(log.log_message, f"Exp {exp_num}: {desc}", "bold cyan")
+            self.call_from_thread(log.log_message, f"  Reasoning: {reasoning}")
+            # Reset training panel for new run
+            self.call_from_thread(training.set_description, f"Exp {exp_num}: {desc}")
+            self.call_from_thread(self._reset_training_panel)
+
+        def on_training_output(line):
+            self.call_from_thread(self._on_orchestrator_training_output, line)
+
+        def on_experiment_complete(result):
+            status_style = {
+                "keep": "bold green", "discard": "bold red",
+                "crash": "bold red", "baseline": "bold cyan",
+            }.get(result.status, "white")
+            if result.val_bpb > 0:
+                msg = f"Result: {result.status.upper()} — val_bpb={result.val_bpb:.4f}"
+            else:
+                msg = f"Result: {result.status.upper()}"
+            self.call_from_thread(log.log_message, msg, status_style)
+            self.call_from_thread(self.action_reload_experiments)
+
+        def on_stats_update(total, kept, discarded, best_bpb):
+            self.call_from_thread(exp_status.update_stats, total, kept, discarded, best_bpb)
+
+        def on_error(message):
+            self.call_from_thread(log.log_message, f"ERROR: {message}", "bold red")
+
+        callbacks = OrchestratorCallbacks(
+            on_status_change=on_status,
+            on_experiment_start=on_experiment_start,
+            on_training_output=on_training_output,
+            on_experiment_complete=on_experiment_complete,
+            on_stats_update=on_stats_update,
+            on_error=on_error,
+        )
+
+        self._orchestrator = ExperimentOrchestrator(
+            training_script=self._training_script,
+            max_experiments=self._max_experiments,
+            run_tag=self._run_tag,
+            callbacks=callbacks,
+        )
+
+        log.log_message("Starting autonomous experiment loop...")
+        self._orchestrator.start()
+
+    def _reset_training_panel(self) -> None:
+        """Reset the training panel for a new experiment run."""
+        training = self.query_one("#training", TrainingPanel)
+        training._metrics = None
+        training._final = None
+        training._refresh_content()
+        # Reset parser for new run
+        self._parser = OutputParser()
+
+    def _on_orchestrator_training_output(self, line: str) -> None:
+        """Process training output from the orchestrator."""
+        training = self.query_one("#training", TrainingPanel)
+        hardware = self.query_one("#hardware", HardwarePanel)
+
+        results = self._parser.parse_line(line)
+        for item in results:
+            if isinstance(item, StepMetrics):
+                training.update_metrics(item)
+            elif isinstance(item, str):
+                # In agent mode, only log key lines to avoid flooding
+                if any(kw in item for kw in (
+                    "Backend:", "peak_vram", "val_bpb",
+                    "Training complete", "Gradient accumulation",
+                )):
+                    log = self.query_one("#activity", ActivityLog)
+                    log.log_message(item)
+
+                if item.startswith("Backend:"):
+                    backend = item.split("(")[0].replace("Backend:", "").strip()
+                    training.set_backend(backend)
+
+                if "peak_vram" in item and self._parser.final:
+                    hardware.update_vram(self._parser.final.peak_vram_mb)
+                    training.update_final(self._parser.final)
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
     def action_reload_experiments(self) -> None:
         """Reload the experiments table from results.tsv."""
         table = self.query_one("#experiments", ExperimentsTable)
         table.load_data()
-        log = self.query_one("#activity", ActivityLog)
-        log.log_message("Experiments table reloaded.")
 
     async def _on_exit(self) -> None:
-        """Kill training subprocess on exit."""
+        """Kill training subprocess and orchestrator on exit."""
+        if self._orchestrator:
+            self._orchestrator.stop()
+
         if self._proc and self._proc.returncode is None:
             self._proc.terminate()
             try:

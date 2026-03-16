@@ -210,6 +210,93 @@ class ExperimentsTable(DataTable):
             )
 
 
+class ExperimentStatusPanel(Static):
+    """Displays autonomous experiment loop status."""
+
+    DEFAULT_CSS = """
+    ExperimentStatusPanel {
+        height: 100%;
+        padding: 0 1;
+    }
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._status = "idle"
+        self._message = "Waiting to start..."
+        self._exp_num = 0
+        self._total_runs = 0
+        self._kept = 0
+        self._discarded = 0
+        self._best_bpb = float("inf")
+        self._description = ""
+        self._reasoning = ""
+
+    def on_mount(self) -> None:
+        self._refresh_content()
+
+    def update_status(self, status: str, message: str) -> None:
+        self._status = status
+        self._message = message
+        self._refresh_content()
+
+    def update_stats(self, total: int, kept: int, discarded: int, best_bpb: float) -> None:
+        self._total_runs = total
+        self._kept = kept
+        self._discarded = discarded
+        self._best_bpb = best_bpb
+        self._refresh_content()
+
+    def set_experiment_info(self, exp_num: int, description: str, reasoning: str) -> None:
+        self._exp_num = exp_num
+        self._description = description
+        self._reasoning = reasoning
+        self._refresh_content()
+
+    def _refresh_content(self) -> None:
+        status_colors = {
+            "idle": "dim",
+            "initializing": "cyan",
+            "baseline": "cyan",
+            "thinking": "yellow",
+            "committing": "white",
+            "training": "green",
+            "evaluating": "magenta",
+            "stopped": "red",
+        }
+        status_style = status_colors.get(self._status, "white")
+
+        lines = []
+
+        # Status line
+        status_icon = {
+            "idle": "◯", "initializing": "⟳", "baseline": "▶",
+            "thinking": "🧠", "committing": "📝", "training": "▶",
+            "evaluating": "📊", "stopped": "■",
+        }.get(self._status, "•")
+        lines.append(Text(
+            f"  {status_icon} {self._status.upper()}: {self._message}",
+            style=f"bold {status_style}",
+        ))
+
+        # Stats line
+        best_str = f"{self._best_bpb:.4f}" if self._best_bpb < float("inf") else "—"
+        lines.append(Text(
+            f"  Runs: {self._total_runs}  │  Kept: {self._kept}  │  "
+            f"Discarded: {self._discarded}  │  Best: {best_str}",
+            style="white",
+        ))
+
+        # Current experiment info
+        if self._description:
+            lines.append(Text(
+                f"  Exp {self._exp_num}: {self._description[:60]}",
+                style="cyan",
+            ))
+
+        self.update(Text("\n").join(lines))
+
+
 class ActivityLog(RichLog):
     """Scrollable activity log."""
 

@@ -24,10 +24,15 @@ mlx = [
 tui = [
     "textual>=3.0.0",
 ]
+agent = [
+    "textual>=3.0.0",
+    "anthropic>=0.40.0",
+]
 all = [
     "torch>=2.6.0",
     "mlx>=0.30.0",
     "matplotlib>=3.10.8",
     "pandas>=2.3.3",
     "textual>=3.0.0",
+    "anthropic>=0.40.0",
 ]

@@ -24,6 +24,14 @@ Screen {
     border-title-style: bold;
 }
 
+#experiment-status-panel {
+    height: 5;
+    min-height: 5;
+    border: solid $warning;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
 #experiments-panel {
     height: 1fr;
     min-height: 6;
