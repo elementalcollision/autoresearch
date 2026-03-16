@@ -27,6 +27,9 @@ class TrainingPanel(Static):
         self._description: str = "Waiting for training..."
         self._backend: str = ""
 
+    def on_mount(self) -> None:
+        self._refresh_content()
+
     def set_description(self, desc: str) -> None:
         self._description = desc
 
@@ -35,21 +38,21 @@ class TrainingPanel(Static):
 
     def update_metrics(self, metrics: StepMetrics) -> None:
         self._metrics = metrics
-        self._render()
+        self._refresh_content()
 
     def update_final(self, final: FinalMetrics) -> None:
         self._final = final
-        self._render()
+        self._refresh_content()
 
-    def _render(self) -> None:
+    def _refresh_content(self) -> None:
         if self._final:
-            self._render_final()
+            self._show_final()
         elif self._metrics:
-            self._render_training()
+            self._show_training()
         else:
             self.update(Text(self._description, style="dim"))
 
-    def _render_training(self) -> None:
+    def _show_training(self) -> None:
         m = self._metrics
         pct = m.pct_done / 100.0
 
@@ -82,7 +85,7 @@ class TrainingPanel(Static):
 
         self.update(Text("\n").join(lines))
 
-    def _render_final(self) -> None:
+    def _show_final(self) -> None:
         f = self._final
         lines = []
         lines.append(Text("Training Complete", style="bold green"))
@@ -121,13 +124,15 @@ class HardwarePanel(Static):
         super().__init__(**kwargs)
         self._hw = hw_info
         self._vram_used_mb: float = 0
-        self._render()
+
+    def on_mount(self) -> None:
+        self._refresh_content()
 
     def update_vram(self, vram_mb: float) -> None:
         self._vram_used_mb = vram_mb
-        self._render()
+        self._refresh_content()
 
-    def _render(self) -> None:
+    def _refresh_content(self) -> None:
         hw = self._hw
         total_gb = hw.get('total_memory_gb', 0)
         used_gb = self._vram_used_mb / 1024
