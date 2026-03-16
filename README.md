@@ -77,9 +77,35 @@ Check your detected hardware and suggested config:
 uv run -c "from backends import print_hardware_summary; print_hardware_summary()"
 ```
 
+## TUI Dashboard
+
+A real-time terminal dashboard for monitoring training runs, built with [Textual](https://textual.textualize.io/).
+
+```bash
+# Install with TUI support
+uv sync --extra tui             # TUI only
+uv sync --extra all             # Everything (backends + TUI)
+
+# Launch dashboard (starts training automatically)
+uv run dashboard.py              # MLX backend (default)
+uv run dashboard.py train.py     # MPS backend
+uv run dashboard.py --watch      # Monitor only (no training)
+```
+
+The dashboard shows four panels:
+- **Training**: Live progress bar, loss, tok/sec, MFU, ETA, learning rate
+- **Hardware**: Apple Silicon chip info, memory usage, GPU cores, peak TFLOPS
+- **Experiments**: History table loaded from `results.tsv`
+- **Activity Log**: Scrollable log of startup info, step summaries, and final results
+
+Keybindings: `q` quit, `d` toggle dark/light mode, `r` reload experiments table.
+
+The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before.
+
 ## Project structure
 
 ```
+dashboard.py            TUI dashboard entry point
 prepare.py              Data prep, tokenizer, dataloader, evaluation (do not modify)
 train.py                MPS training script + backend dispatch (agent modifies this)
 train_mlx.py            MLX training script (agent modifies this)
@@ -88,7 +114,14 @@ backends/
   __init__.py           Hardware detection, chip tier, hyperparameter suggestions
   muon_mps.py           Muon+AdamW optimizer for PyTorch MPS
   muon_mlx.py           Muon+AdamW optimizer for MLX (novel port)
-pyproject.toml          Dependencies with optional groups
+tui/
+  app.py                Textual Application, layout, async subprocess management
+  widgets.py            TrainingPanel, HardwarePanel, ExperimentsTable, ActivityLog
+  parser.py             Regex parser for training stdout (\r-delimited output)
+  hardware.py           Apple Silicon hardware detection (chip, cores, memory, TFLOPS)
+  experiments.py        results.tsv loader
+  styles.tcss           CSS layout for panel styling
+pyproject.toml          Dependencies with optional groups (mlx, mps, tui, all)
 ```
 
 **What the agent edits**: `train.py` (MPS) or `train_mlx.py` (MLX). Everything is fair game: architecture, optimizer settings, hyperparameters, batch size, model depth.
