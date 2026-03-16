@@ -79,28 +79,53 @@ uv run -c "from backends import print_hardware_summary; print_hardware_summary()
 
 ## TUI Dashboard
 
-A real-time terminal dashboard for monitoring training runs, built with [Textual](https://textual.textualize.io/).
+A real-time terminal dashboard for monitoring training runs, built with [Textual](https://textual.textualize.io/). Supports both single training runs and **autonomous agent mode** where Claude drives the full experiment loop.
 
 ```bash
 # Install with TUI support
-uv sync --extra tui             # TUI only
-uv sync --extra all             # Everything (backends + TUI)
+uv sync --extra tui             # TUI only (single-run mode)
+uv sync --extra agent           # TUI + Claude API (agent mode)
+uv sync --extra all             # Everything (backends + TUI + agent)
 
-# Launch dashboard (starts training automatically)
+# Single training run (starts training, shows live metrics)
 uv run dashboard.py              # MLX backend (default)
 uv run dashboard.py train.py     # MPS backend
-uv run dashboard.py --watch      # Monitor only (no training)
+
+# Autonomous agent mode (requires ANTHROPIC_API_KEY)
+ANTHROPIC_API_KEY=sk-ant-... uv run dashboard.py --agent
+ANTHROPIC_API_KEY=sk-ant-... uv run dashboard.py --agent --tag mar16 --max 50
+
+# Watch mode (no training, monitor results.tsv only)
+uv run dashboard.py --watch
 ```
 
-The dashboard shows four panels:
+### Dashboard panels
+
 - **Training**: Live progress bar, loss, tok/sec, MFU, ETA, learning rate
 - **Hardware**: Apple Silicon chip info, memory usage, GPU cores, peak TFLOPS
+- **Experiment Loop** *(agent mode only)*: Current status (thinking/training/evaluating), run counts, kept/discarded, best val_bpb
 - **Experiments**: History table loaded from `results.tsv`
 - **Activity Log**: Scrollable log of startup info, step summaries, and final results
 
+### Agent mode
+
+In agent mode (`--agent`), the dashboard runs the full autoresearch experiment loop autonomously:
+
+1. Creates a branch `autoresearch/<tag>` and runs a baseline training
+2. Calls Claude API with current hyperparameters + results history
+3. Claude proposes one code change with reasoning
+4. Applies the change, validates syntax, git commits
+5. Trains for 5 minutes, evaluates val_bpb
+6. **Keep** if improved (commit stays), **discard** if worse (git reset)
+7. Records results in `results.tsv`, loops back to step 2
+
+This replicates the upstream autoresearch workflow from `program.md` but with a visual dashboard — no manual intervention needed.
+
+**LLM backends**: Claude API (Option A, production-ready) or local models via Ollama (Option B, placeholder for future implementation — set `OLLAMA_MODEL` env var).
+
 Keybindings: `q` quit, `d` toggle dark/light mode, `r` reload experiments table.
 
-The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation, screenshots, and troubleshooting.
+The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation and screenshots.
 
 ## Project structure
 
@@ -115,13 +140,17 @@ backends/
   muon_mps.py           Muon+AdamW optimizer for PyTorch MPS
   muon_mlx.py           Muon+AdamW optimizer for MLX (novel port)
 tui/
-  app.py                Textual Application, layout, async subprocess management
-  widgets.py            TrainingPanel, HardwarePanel, ExperimentsTable, ActivityLog
+  app.py                Textual Application, layout, subprocess management
+  widgets.py            TrainingPanel, HardwarePanel, ExperimentsTable, ExperimentStatusPanel, ActivityLog
+  orchestrator.py       Autonomous experiment loop (LLM → modify → train → evaluate → keep/discard)
+  llm_backend.py        LLM abstraction: Claude API (Option A) + Ollama placeholder (Option B)
+  git_manager.py        Git operations: branch, commit, revert
+  results.py            results.tsv read/write/history formatting for LLM prompts
   parser.py             Regex parser for training stdout (\r-delimited output)
   hardware.py           Apple Silicon hardware detection (chip, cores, memory, TFLOPS)
-  experiments.py        results.tsv loader
+  experiments.py        results.tsv loader for TUI table display
   styles.tcss           CSS layout for panel styling
-pyproject.toml          Dependencies with optional groups (mlx, mps, tui, all)
+pyproject.toml          Dependencies with optional groups (mlx, mps, tui, agent, all)
 ```
 
 **What the agent edits**: `train.py` (MPS) or `train_mlx.py` (MLX). Everything is fair game: architecture, optimizer settings, hyperparameters, batch size, model depth.
