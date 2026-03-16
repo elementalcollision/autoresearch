@@ -100,7 +100,7 @@ The dashboard shows four panels:
 
 Keybindings: `q` quit, `d` toggle dark/light mode, `r` reload experiments table.
 
-The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before.
+The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation, screenshots, and troubleshooting.
 
 ## Project structure
 
@@ -140,16 +140,16 @@ The agent reads `program.md`, establishes a baseline, then enters an autonomous 
 
 ## Hardware recommendations
 
-### Auto-detected defaults (starting points)
+### Auto-detected defaults (validated by characterization)
 
 | Chip tier | Memory | Model depth | Device batch | Total batch |
 |-----------|--------|-------------|-------------|-------------|
-| Base (M1-M5) | 8-24 GB | 4 | 8 | 32K tokens |
-| Pro | 18-36 GB | 6 | 16 | 64K tokens |
-| Max | 36-128 GB | 8 | 32 | 128K tokens |
-| Ultra | 64-192 GB | 10 | 64 | 256K tokens |
+| Base (M1-M5) | 8-16 GB | 4 | 4 | 4K tokens |
+| Pro | 18-36 GB | 6 | 8 | 8K tokens |
+| Max | 36-128 GB | 8 | 16 | 32K tokens |
+| Ultra | 64-192 GB | 10 | 32 | 64K tokens |
 
-These are conservative starting points. The agent will aggressively optimize them during experimentation — the defaults are intentionally *not* optimal.
+These defaults are calibrated from real characterization sessions across three chips. Larger batches cause memory-pressure swapping even on 64 GB machines — more gradient steps (smaller batches) consistently beats model capacity within the fixed 5-minute budget.
 
 ### Optimized results (after autonomous tuning)
 
