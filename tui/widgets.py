@@ -125,20 +125,40 @@ class HardwarePanel(Static):
     def __init__(self, hw_info: dict, **kwargs):
         super().__init__(**kwargs)
         self._hw = hw_info
-        self._vram_used_mb: float = 0
+        self._live_mb: float = 0       # current RSS from polling
+        self._peak_mb: float = 0       # peak from final output or max(live)
+        self._live_peak_mb: float = 0  # highest live reading this run
 
     def on_mount(self) -> None:
         self._refresh_content()
 
     def update_vram(self, vram_mb: float) -> None:
-        self._vram_used_mb = vram_mb
+        """Update with final peak VRAM from training output."""
+        self._peak_mb = vram_mb
+        self._refresh_content()
+
+    def update_live_memory(self, rss_mb: float) -> None:
+        """Update with live RSS from subprocess polling."""
+        self._live_mb = rss_mb
+        if rss_mb > self._live_peak_mb:
+            self._live_peak_mb = rss_mb
+        self._refresh_content()
+
+    def reset_memory(self) -> None:
+        """Reset memory tracking for a new experiment run."""
+        self._live_mb = 0
+        self._live_peak_mb = 0
+        self._peak_mb = 0
         self._refresh_content()
 
     def _refresh_content(self) -> None:
         hw = self._hw
         total_gb = hw.get('total_memory_gb', 0)
-        used_gb = self._vram_used_mb / 1024
-        pct = (used_gb / total_gb * 100) if total_gb > 0 else 0
+
+        # Use live reading if available, otherwise peak from final output
+        display_mb = self._live_mb if self._live_mb > 0 else self._peak_mb
+        display_gb = display_mb / 1024
+        pct = (display_gb / total_gb * 100) if total_gb > 0 else 0
 
         bar_width = 20
         filled = int(bar_width * pct / 100)
@@ -148,12 +168,21 @@ class HardwarePanel(Static):
         lines.append(Text(hw.get('chip_name', 'Unknown'), style="bold cyan"))
         lines.append(Text(f"  Memory: {total_gb:.0f} GB unified", style="white"))
 
-        if self._vram_used_mb > 0:
+        if display_mb > 0:
+            mem_style = "red" if pct > 90 else ("yellow" if pct > 75 else "green")
             lines.append(Text(
-                f"  Used: {used_gb:.1f} / {total_gb:.0f} GB ({pct:.1f}%)",
-                style="yellow" if pct > 75 else "green",
+                f"  Used: {display_gb:.1f} / {total_gb:.0f} GB ({pct:.1f}%)",
+                style=mem_style,
             ))
-            lines.append(Text(f"  {bar}", style="yellow" if pct > 75 else "green"))
+            lines.append(Text(f"  {bar}", style=mem_style))
+
+            # Show peak if different from current
+            peak_display = max(self._live_peak_mb, self._peak_mb)
+            if peak_display > 0 and abs(peak_display - display_mb) > 100:
+                lines.append(Text(
+                    f"  Peak: {peak_display / 1024:.1f} GB",
+                    style="dim",
+                ))
         else:
             lines.append(Text("  Used: waiting...", style="dim"))
             lines.append(Text(f"  {'░' * bar_width}", style="dim"))

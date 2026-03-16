@@ -18,6 +18,27 @@ from tui.widgets import (
 )
 
 
+def _get_process_rss_mb(pid: int) -> float:
+    """Get RSS (resident set size) of a process in MB via ps command.
+
+    On Apple Silicon with unified memory, RSS is a reasonable proxy for
+    GPU memory usage since CPU and GPU share the same physical memory.
+    Returns 0.0 if the process is not found.
+    """
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "rss=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return int(result.stdout.strip()) / 1024  # KB → MB
+    except (subprocess.TimeoutExpired, ValueError, FileNotFoundError):
+        pass
+    return 0.0
+
+
 class DashboardApp(App):
     """Autoresearch training dashboard for Apple Silicon."""
 
@@ -49,6 +70,7 @@ class DashboardApp(App):
         self._parser = OutputParser()
         self._reader_thread: threading.Thread | None = None
         self._orchestrator = None
+        self._memory_timer = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -131,6 +153,9 @@ class DashboardApp(App):
         log.log_message("Process started, reading output...")
         training.set_description("Compiling model (first step may take 30-60s)...")
 
+        # Start memory polling (every 2 seconds)
+        self._start_memory_polling()
+
         self._reader_thread = threading.Thread(
             target=self._reader_worker,
             args=(self._proc,),
@@ -194,6 +219,7 @@ class DashboardApp(App):
         """Handle training subprocess completion on the main thread."""
         log = self.query_one("#activity", ActivityLog)
         self._proc = None
+        self._stop_memory_polling()
 
         if returncode == 0:
             log.log_message("Training process exited successfully.", style="bold green")
@@ -265,6 +291,7 @@ class DashboardApp(App):
         )
 
         log.log_message("Starting autonomous experiment loop...")
+        self._start_memory_polling()
         self._orchestrator.start()
 
     def _reset_training_panel(self) -> None:
@@ -273,6 +300,9 @@ class DashboardApp(App):
         training._metrics = None
         training._final = None
         training._refresh_content()
+        # Reset hardware memory for new run
+        hardware = self.query_one("#hardware", HardwarePanel)
+        hardware.reset_memory()
         # Reset parser for new run
         self._parser = OutputParser()
 
@@ -301,6 +331,40 @@ class DashboardApp(App):
                 if "peak_vram" in item and self._parser.final:
                     hardware.update_vram(self._parser.final.peak_vram_mb)
                     training.update_final(self._parser.final)
+
+    # ------------------------------------------------------------------
+    # Memory polling
+    # ------------------------------------------------------------------
+
+    def _start_memory_polling(self) -> None:
+        """Start polling subprocess memory every 2 seconds."""
+        self._stop_memory_polling()  # cancel any existing timer
+        self._memory_timer = self.set_interval(2.0, self._poll_memory)
+
+    def _stop_memory_polling(self) -> None:
+        """Stop memory polling timer."""
+        if self._memory_timer is not None:
+            self._memory_timer.stop()
+            self._memory_timer = None
+
+    def _poll_memory(self) -> None:
+        """Poll training subprocess RSS and update hardware panel."""
+        # Check single-run mode process
+        pid = None
+        if self._proc and self._proc.returncode is None:
+            pid = self._proc.pid
+
+        # Check orchestrator's subprocess
+        if pid is None and self._orchestrator:
+            orch_proc = getattr(self._orchestrator, '_proc', None)
+            if orch_proc and orch_proc.returncode is None:
+                pid = orch_proc.pid
+
+        if pid:
+            rss_mb = _get_process_rss_mb(pid)
+            if rss_mb > 0:
+                hardware = self.query_one("#hardware", HardwarePanel)
+                hardware.update_live_memory(rss_mb)
 
     # ------------------------------------------------------------------
     # Actions
