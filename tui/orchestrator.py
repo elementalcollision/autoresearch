@@ -169,6 +169,21 @@ class ExperimentOrchestrator:
                 self._cb_error(f"LLM backend error: {e}")
                 return
 
+            # Validate credentials with a preflight API call
+            self._cb_status("initializing", "Validating API credentials...")
+            try:
+                if not self._llm.validate():
+                    source = getattr(self._llm, '_cred_source', 'unknown')
+                    self._cb_error(
+                        f"API credential validation failed (source: {source}). "
+                        f"Run: uv run dashboard.py --setup-key"
+                    )
+                    return
+            except Exception as e:
+                self._cb_error(f"API validation error: {e}")
+                return
+            self._cb_status("initializing", "API credentials validated ✓")
+
             # Set up branch
             branch_name = f"autoresearch/{self._run_tag}"
             current = self._git.current_branch()
@@ -215,7 +230,10 @@ class ExperimentOrchestrator:
                 time.sleep(2)
 
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             self._cb_error(f"Orchestrator error: {e}")
+            self._cb_error(f"Traceback: {tb}")
         finally:
             self._running = False
             self._cb_status("stopped", "Experiment loop stopped")
@@ -336,11 +354,12 @@ class ExperimentOrchestrator:
 
             if improved:
                 status = "keep"
+                old_best = self.best_val_bpb
                 self.best_val_bpb = final.val_bpb
                 self.best_experiment = f"exp{exp_num} ({proposal.description})"
                 self.kept_count += 1
                 self._cb_status("evaluating",
-                    f"KEEP — val_bpb improved: {final.val_bpb:.4f} (was {self.best_val_bpb:.4f})")
+                    f"KEEP — val_bpb improved: {final.val_bpb:.4f} (was {old_best:.4f})")
             else:
                 status = "discard"
                 self.discarded_count += 1

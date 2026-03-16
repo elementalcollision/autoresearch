@@ -128,6 +128,10 @@ class LLMBackend(ABC):
         """Human-readable backend name."""
         ...
 
+    def validate(self) -> bool:
+        """Test that the backend credentials work. Returns True if valid."""
+        return True  # Default: assume valid
+
 
 # ---------------------------------------------------------------------------
 # Claude Backend (Option A)
@@ -153,6 +157,19 @@ class ClaudeBackend(LLMBackend):
 
     def name(self) -> str:
         return f"Claude ({self._model}) via {self._cred_source}"
+
+    def validate(self) -> bool:
+        """Test the API key with a minimal request. Returns True if valid."""
+        try:
+            import anthropic
+            self._client.messages.create(
+                model=self._model,
+                max_tokens=5,
+                messages=[{"role": "user", "content": "Say OK"}],
+            )
+            return True
+        except anthropic.AuthenticationError:
+            return False
 
     def generate_experiment(
         self,
