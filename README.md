@@ -123,6 +123,29 @@ This replicates the upstream autoresearch workflow from `program.md` but with a 
 
 **LLM backends**: Claude API (Option A, production-ready) or local models via Ollama (Option B, placeholder for future implementation — set `OLLAMA_MODEL` env var).
 
+### Credentials
+
+Agent mode requires an Anthropic API key. The dashboard resolves credentials automatically from multiple sources:
+
+| Priority | Source | Setup |
+|----------|--------|-------|
+| 1 | `ANTHROPIC_API_KEY` env var | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| 2 | macOS Keychain | `uv run dashboard.py --setup-key` (one-time, recommended) |
+| 3 | Claude Code credentials | Automatic if Claude Code is installed and authenticated |
+
+```bash
+# One-time setup: store API key in encrypted macOS Keychain
+uv run dashboard.py --setup-key
+
+# Check which credential source is active
+uv run dashboard.py --check-key
+
+# Remove stored key from Keychain
+uv run dashboard.py --clear-key
+```
+
+If you're already authenticated with Claude Code, the dashboard will attempt to use those credentials as a fallback. For reliable agent mode, a proper API key (via `--setup-key` or env var) is recommended.
+
 Keybindings: `q` quit, `d` toggle dark/light mode, `r` reload experiments table.
 
 The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation and screenshots.
@@ -144,6 +167,7 @@ tui/
   widgets.py            TrainingPanel, HardwarePanel, ExperimentsTable, ExperimentStatusPanel, ActivityLog
   orchestrator.py       Autonomous experiment loop (LLM → modify → train → evaluate → keep/discard)
   llm_backend.py        LLM abstraction: Claude API (Option A) + Ollama placeholder (Option B)
+  credentials.py        API key resolution: env var → macOS Keychain → Claude Code credentials
   git_manager.py        Git operations: branch, commit, revert
   results.py            results.tsv read/write/history formatting for LLM prompts
   parser.py             Regex parser for training stdout (\r-delimited output)

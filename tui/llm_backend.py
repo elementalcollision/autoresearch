@@ -144,15 +144,15 @@ class ClaudeBackend(LLMBackend):
                 "anthropic package not installed. Run: uv sync --extra agent"
             )
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY environment variable not set")
+        from tui.credentials import resolve_api_key
 
-        self._client = anthropic.Anthropic(api_key=api_key)
+        cred = resolve_api_key()
+        self._client = anthropic.Anthropic(api_key=cred.api_key)
         self._model = model
+        self._cred_source = cred.source
 
     def name(self) -> str:
-        return f"Claude ({self._model})"
+        return f"Claude ({self._model}) via {self._cred_source}"
 
     def generate_experiment(
         self,
@@ -221,20 +221,33 @@ class OllamaBackend(LLMBackend):
 # ---------------------------------------------------------------------------
 
 def get_llm_backend() -> LLMBackend:
-    """Create the appropriate LLM backend based on environment variables.
+    """Create the appropriate LLM backend based on available credentials.
 
     Priority:
-    1. ANTHROPIC_API_KEY → ClaudeBackend
-    2. OLLAMA_MODEL → OllamaBackend (placeholder)
-    3. Error
+    1. OLLAMA_MODEL env var → OllamaBackend (local, placeholder)
+    2. Claude API via credential resolver:
+       a. ANTHROPIC_API_KEY env var
+       b. macOS Keychain (autoresearch-agent)
+       c. Claude Code keychain credentials
+    3. Error with setup instructions
     """
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return ClaudeBackend()
-    elif os.environ.get("OLLAMA_MODEL"):
+    if os.environ.get("OLLAMA_MODEL"):
         return OllamaBackend()
-    else:
+
+    # ClaudeBackend uses resolve_api_key() internally, which checks
+    # env var, keychain, and Claude Code credentials in order
+    try:
+        return ClaudeBackend()
+    except RuntimeError:
         raise RuntimeError(
-            "No LLM backend configured. Set one of:\n"
-            "  ANTHROPIC_API_KEY=sk-ant-...  (Claude API)\n"
-            "  OLLAMA_MODEL=qwen2.5-coder:32b  (local, not yet implemented)"
+            "No LLM backend configured. Set up credentials:\n"
+            "\n"
+            "  Option 1 — Store in macOS Keychain (recommended):\n"
+            "    uv run dashboard.py --setup-key\n"
+            "\n"
+            "  Option 2 — Environment variable:\n"
+            "    export ANTHROPIC_API_KEY=sk-ant-...\n"
+            "\n"
+            "  Option 3 — Local LLM (not yet implemented):\n"
+            "    export OLLAMA_MODEL=qwen2.5-coder:32b\n"
         )

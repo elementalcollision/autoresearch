@@ -3,11 +3,16 @@
 
 Usage:
     uv run dashboard.py                          # Single training run (default)
-    uv run dashboard.py --agent                  # Autonomous experiment loop (requires ANTHROPIC_API_KEY)
+    uv run dashboard.py --agent                  # Autonomous experiment loop
     uv run dashboard.py --agent --tag mar16      # Custom run tag (default: today's date)
     uv run dashboard.py --agent --max 50         # Limit to 50 experiments (default: 100)
     uv run dashboard.py --watch                  # Watch mode (no training, monitor results.tsv)
     uv run dashboard.py train.py                 # Single run with MPS backend
+
+Credential management:
+    uv run dashboard.py --setup-key              # Store API key in macOS Keychain (one-time)
+    uv run dashboard.py --clear-key              # Remove stored API key from Keychain
+    uv run dashboard.py --check-key              # Check which credential source is active
 """
 
 import sys
@@ -18,6 +23,39 @@ def main():
 
     if "--help" in args or "-h" in args:
         print(__doc__)
+        sys.exit(0)
+
+    # Credential management commands (non-TUI, exit after)
+    if "--setup-key" in args:
+        from tui.credentials import setup_api_key
+        setup_api_key()
+        sys.exit(0)
+
+    if "--clear-key" in args:
+        from tui.credentials import clear_api_key
+        clear_api_key()
+        sys.exit(0)
+
+    if "--check-key" in args:
+        from tui.credentials import resolve_api_key
+        try:
+            cred = resolve_api_key()
+            masked = cred.api_key[:12] + "..." + cred.api_key[-4:]
+            source_desc = {
+                "env": "ANTHROPIC_API_KEY environment variable",
+                "keychain": "macOS Keychain (autoresearch-agent)",
+                "claude-code": "Claude Code credentials (OAuth token — may not work with API)",
+            }
+            print(f"Active credential: {masked}")
+            print(f"Source: {source_desc.get(cred.source, cred.source)}")
+            if cred.source == "claude-code":
+                print()
+                print("Note: Claude Code OAuth tokens may not work with the Anthropic API.")
+                print("For reliable agent mode, store a proper API key:")
+                print("  uv run dashboard.py --setup-key")
+        except RuntimeError as e:
+            print(str(e))
+            sys.exit(1)
         sys.exit(0)
 
     # Parse flags
