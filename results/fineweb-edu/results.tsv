@@ -1,0 +1,89 @@
+exp	description	val_bpb	peak_mem_gb	tok_sec	mfu	steps	status	notes
+exp0	baseline (no modifications)	1.408783	26.1	31270	27.9	288	baseline	depth=8, Apple M5 Max
+exp1	Decrease DEVICE_BATCH_SIZE from default to 4 to increase gradient steps	1.465631	24.5	25598	22.6	236	discard	The key insight is maximizing gradient steps within the 5-minute budget. Reducin
+exp2	Increase MATRIX_LR from 0.04 to 0.06	1.469426	26.1	25572	22.4	234	discard	The baseline achieved the best val_bpb so far, suggesting the default hyperparam
+exp3	Decrease TOTAL_BATCH_SIZE to increase gradient steps per time budget	0.000000	0.0	0	0.0	0	crash	training crashed or timed out
+exp4	Increase EMBEDDING_LR from 0.6 to 0.8	1.489286	26.1	25232	22.1	231	discard	The baseline performed best so far, suggesting the current hyperparameters are r
+exp5	Decrease MATRIX_LR from 0.04 to 0.03	1.524455	26.1	24617	21.6	225	discard	The previous experiment (exp2) showed that increasing MATRIX_LR to 0.06 hurt per
+exp6	Decrease WEIGHT_DECAY from 0.2 to 0.1	1.476363	26.1	25265	22.3	233	discard	The baseline is still performing best, suggesting the default hyperparameters ar
+exp7	Increase SCALAR_LR from 0.5 to 0.7	1.513448	26.1	25324	22.4	233	discard	The scalar learning rate controls important parameters like layer norms and bias
+exp8	Decrease EMBEDDING_LR from 0.6 to 0.4	1.458887	26.1	25555	22.4	234	discard	The baseline is still the best performer, and previous attempts to increase lear
+exp9	Increase DEPTH from default to 12 layers	0.000000	0.0	0	0.0	0	crash	training crashed or timed out
+exp10	Increase WARMUP_RATIO from 0.0 to 0.1	1.424248	26.1	30615	27.3	282	discard	The baseline is still best, suggesting the current learning rates may be too agg
+exp11	Decrease SCALAR_LR from 0.5 to 0.3	1.406436	26.1	29950	26.7	276	keep	The baseline is still the best performer, and most learning rate increases have 
+exp12	Increase MATRIX_LR from 0.04 to 0.05	1.401028	26.1	30625	27.2	281	keep	The current best experiment (exp11) achieved 1.4064 val_bpb by decreasing SCALAR
+exp13	Decrease UNEMBEDDING_LR from 0.004 to 0.003	1.400401	26.1	30969	27.4	283	keep	The current best experiments (exp11 and exp12) both involved adjusting learning 
+exp14	Decrease WARMDOWN_RATIO from 0.5 to 0.4	1.397670	26.1	30938	27.5	284	keep	The current best experiments (exp11-13) all have similar step counts around 276-
+exp15	Decrease WARMDOWN_RATIO from 0.4 to 0.3	1.400346	26.1	30989	27.4	283	discard	The last experiment (exp14) showed improvement by decreasing WARMDOWN_RATIO from
+exp16	Decrease UNEMBEDDING_LR from 0.003 to 0.002	1.411950	26.1	30585	27.2	282	discard	The last few improvements came from fine-tuning learning rates, with UNEMBEDDING
+exp17	Increase MATRIX_LR from 0.05 to 0.06	1.399943	26.1	30979	27.4	283	discard	The progression from exp12 (MATRIX_LR=0.05, val_bpb=1.4010) to the current best 
+exp18	Increase EMBEDDING_LR from 0.6 to 0.7	1.397768	26.1	30927	27.6	285	discard	The current best performing experiments have optimized MATRIX_LR, UNEMBEDDING_LR
+exp19	Decrease EMBEDDING_LR from 0.6 to 0.5	1.398212	26.1	30585	27.2	282	discard	The current best result uses EMBEDDING_LR=0.6, but we've seen that decreasing em
+exp20	Decrease WEIGHT_DECAY from 0.2 to 0.15	1.402521	26.1	30564	27.0	280	discard	The current best experiments have achieved val_bpb around 1.398 with good throug
+exp21	Increase WARMUP_RATIO from 0.0 to 0.05	1.427076	26.1	30625	27.1	280	discard	Experiment 10 showed that a small warmup (0.1) helped performance but wasn't qui
+exp22	Decrease SCALAR_LR from 0.3 to 0.25	1.403360	26.1	30625	27.1	280	discard	The current best result (exp14: 1.3977) uses SCALAR_LR=0.3, which was an improve
+exp23	Increase HEAD_DIM from 128 to 144	1.441422	27.8	25249	27.0	232	discard	We've exhausted most learning rate and schedule optimizations around the current
+exp24	Increase SCALAR_LR from 0.3 to 0.35	1.414805	26.1	30585	27.0	280	discard	The current best experiment (exp14) has SCALAR_LR at 0.3, which was reduced from
+exp25	Increase WARMUP_RATIO from 0.0 to 0.02	1.419053	26.1	30564	27.1	281	discard	The best result (exp14) shows that learning rate scheduling matters. While exp21
+exp26	Decrease MATRIX_LR from 0.05 to 0.04	1.403090	26.1	30958	27.4	283	discard	The current best result uses MATRIX_LR=0.05, but the original baseline had 0.04.
+exp27	Decrease UNEMBEDDING_LR from 0.003 to 0.0025	1.401332	26.1	30969	27.5	284	discard	The best experiment (exp14) has UNEMBEDDING_LR=0.003, and exp16 showed that 0.00
+exp28	Decrease HEAD_DIM from 128 to 112	1.449322	29.4	24633	25.1	226	discard	The current best configuration has optimized learning rates and schedule, but ar
+exp29	Change WINDOW_PATTERN from "SSSL" to "SSLL"	1.400099	26.1	30625	28.7	282	discard	The current best configuration has been optimized for learning rates and decay s
+exp30	Change WINDOW_PATTERN from "SSSL" to "SSL"	1.401359	26.1	30554	27.7	280	discard	The current best configuration has been optimized for learning rates and schedul
+exp31	Increase ASPECT_RATIO from 64 to 80	1.457249	31.4	22311	28.3	205	discard	The current best results cluster around similar token throughput (~31k tok/s, ~2
+exp32	Decrease ASPECT_RATIO from 64 to 48	1.382715	20.7	39893	22.5	366	keep	Smaller aspect ratios can lead to more efficient computation and potentially bet
+exp33	Decrease ASPECT_RATIO from 48 to 40	1.382080	20.7	39933	22.6	366	keep	Exp32 showed a significant improvement (1.3827 vs baseline 1.4088) by decreasing
+exp34	Decrease ASPECT_RATIO from 40 to 32	1.346080	15.5	61584	19.1	565	keep	The trend shows decreasing ASPECT_RATIO has consistently improved val_bpb (64→48
+exp35	Decrease ASPECT_RATIO from 32 to 28	1.346860	15.5	61584	19.0	565	discard	The trend is clear - decreasing ASPECT_RATIO has consistently improved val_bpb f
+exp36	Decrease ASPECT_RATIO from 32 to 24	1.346633	15.5	61625	19.0	564	discard	The trend from experiments 32-35 shows that decreasing ASPECT_RATIO consistently
+exp37	Increase MATRIX_LR from 0.05 to 0.055	1.347825	15.5	61584	19.1	566	discard	Experiment 34 achieved the best val_bpb of 1.3461 with ASPECT_RATIO=32, which si
+exp38	Decrease EMBEDDING_LR from 0.6 to 0.55	1.346698	15.5	61666	19.0	564	discard	With ASPECT_RATIO=32 giving the best result so far, I should optimize the learni
+exp39	Increase MATRIX_LR from 0.05 to 0.06	1.349041	15.5	61272	18.9	561	discard	The current best experiment (exp34) uses ASPECT_RATIO=32 which significantly imp
+exp40	Decrease MATRIX_LR from 0.05 to 0.045	1.347568	15.5	61292	18.9	561	discard	The current best result (exp34) uses ASPECT_RATIO=32 with MATRIX_LR=0.05. Recent
+exp41	Decrease UNEMBEDDING_LR from 0.003 to 0.0028	1.348027	15.5	61231	18.9	562	discard	The current best experiment (exp34) achieved 1.3461 val_bpb with ASPECT_RATIO=32
+exp42	Decrease SCALAR_LR from 0.3 to 0.28	1.347121	15.5	61584	19.0	565	discard	The current best configuration (exp34) has ASPECT_RATIO=32 which significantly r
+exp43	Increase EMBEDDING_LR from 0.6 to 0.65	1.346426	15.5	61605	19.1	565	discard	With ASPECT_RATIO=32 giving us the best performance so far, I should explore fin
+exp44	Increase SCALAR_LR from 0.3 to 0.32	1.348861	15.5	61584	19.1	566	discard	The current best configuration has ASPECT_RATIO=32 which significantly increased
+exp45	Decrease WEIGHT_DECAY from 0.2 to 0.18	1.346067	15.5	61666	19.1	565	keep	With ASPECT_RATIO=32 giving us the best performance so far (1.3461 val_bpb), we 
+exp46	Decrease WEIGHT_DECAY from 0.18 to 0.16	1.345704	15.5	61625	19.1	565	keep	The last experiment (exp45) improved val_bpb by decreasing weight decay from 0.2
+exp47	Decrease WEIGHT_DECAY from 0.16 to 0.14	1.344966	15.5	61646	19.1	565	keep	The recent experiments show a clear trend of decreasing weight decay improving p
+exp48	Decrease WEIGHT_DECAY from 0.14 to 0.12	1.344453	15.5	61564	19.1	566	keep	The recent experiments show a clear trend of improvement as WEIGHT_DECAY decreas
+exp49	Decrease WEIGHT_DECAY from 0.12 to 0.10	1.344856	15.5	61292	19.0	563	discard	The consistent trend shows that decreasing weight decay continues to improve val
+exp50	Decrease WEIGHT_DECAY from 0.12 to 0.11	1.345119	15.5	61292	19.0	562	discard	The weight decay reduction has shown a consistent improvement trend from 0.2 dow
+exp51	Increase EMBEDDING_LR from 0.6 to 0.62	1.344920	15.5	61312	18.9	561	discard	The current best configuration has WEIGHT_DECAY=0.12 which is working well. Sinc
+exp52	Decrease EMBEDDING_LR from 0.6 to 0.58	1.344050	15.5	61938	19.1	567	keep	We've found the optimal ASPECT_RATIO (32) and WEIGHT_DECAY (0.12), achieving our
+exp53	Increase MATRIX_LR from 0.05 to 0.052	1.343928	15.5	62250	19.3	572	keep	The current configuration has been optimized through many small adjustments, wit
+exp54	Increase EMBEDDING_LR from 0.58 to 0.56	1.344169	15.5	62250	19.2	571	discard	The current best configuration has EMBEDDING_LR at 0.58 (from exp52). Since decr
+exp55	Decrease MATRIX_LR from 0.052 to 0.051	1.343983	15.5	62271	19.2	570	discard	The recent experiments show a clear pattern where fine-tuning MATRIX_LR around 0
+exp56	Decrease UNEMBEDDING_LR from 0.003 to 0.0029	1.344849	15.5	62333	19.2	570	discard	The current best configuration has val_bpb of 1.3439, and we've exhaustively tun
+exp57	Increase MATRIX_LR from 0.052 to 0.054	1.344800	15.5	62271	19.2	570	discard	The current best result came from increasing MATRIX_LR to 0.052, and the previou
+exp58	Increase EMBEDDING_LR from 0.58 to 0.59	1.343900	15.5	62271	19.3	571	keep	The current best configuration has EMBEDDING_LR=0.58, and we've seen that decrea
+exp59	Decrease SCALAR_LR from 0.3 to 0.29	1.344410	15.5	62229	19.2	571	discard	The current best configuration has EMBEDDING_LR=0.59, MATRIX_LR=0.052, UNEMBEDDI
+exp60	Increase UNEMBEDDING_LR from 0.003 to 0.0031	1.344681	15.5	61896	19.1	567	discard	The current best configuration has EMBEDDING_LR=0.59 and MATRIX_LR=0.052, both s
+exp61	Increase SCALAR_LR from 0.3 to 0.31	1.345960	15.5	61564	19.1	566	discard	The current best configuration has EMBEDDING_LR=0.59, MATRIX_LR=0.052, UNEMBEDDI
+exp62	Decrease WARMDOWN_RATIO from 0.4 to 0.35	1.346227	15.5	61917	19.1	568	discard	The current best configuration has been fine-tuned through many learning rate ad
+exp63	Decrease UNEMBEDDING_LR from 0.003 to 0.0028	1.345556	15.5	62312	19.3	571	discard	The current best configuration has EMBEDDING_LR at 0.59 and MATRIX_LR at 0.052, 
+exp64	Increase MATRIX_LR from 0.052 to 0.053	1.343605	15.5	62312	19.3	571	keep	The current best configuration has MATRIX_LR=0.052, EMBEDDING_LR=0.59, and WEIGH
+exp65	Decrease EMBEDDING_LR from 0.59 to 0.58	1.343959	15.5	62312	19.3	571	discard	The current best configuration has EMBEDDING_LR at 0.59, but experiment 52 showe
+exp66	Decrease SCALAR_LR from 0.3 to 0.28	1.345783	15.5	62333	19.3	571	discard	The current best configuration has been fine-tuned through many experiments, wit
+exp67	Increase WARMDOWN_RATIO from 0.4 to 0.45	1.342699	15.5	62229	19.3	572	keep	The current best configuration has been achieved through fine-tuning learning ra
+exp68	Decrease WARMDOWN_RATIO from 0.45 to 0.50	1.343304	15.5	62250	19.3	572	discard	The last experiment showed that increasing WARMDOWN_RATIO from 0.4 to 0.45 impro
+exp69	Increase EMBEDDING_LR from 0.59 to 0.595	1.343337	15.5	62250	19.3	572	discard	The current best configuration has EMBEDDING_LR=0.59, and we've seen that small 
+exp70	Decrease WEIGHT_DECAY from 0.12 to 0.11	1.343936	15.5	61979	19.2	569	discard	The current best configuration has WEIGHT_DECAY=0.12, but exp49 showed that 0.10
+exp71	Decrease EMBEDDING_LR from 0.59 to 0.585	1.344048	15.5	61896	19.1	568	discard	The current best configuration has EMBEDDING_LR=0.59, and recent experiments sho
+exp72	Increase MATRIX_LR from 0.053 to 0.054	1.344728	15.5	61646	19.1	566	discard	The current best result has MATRIX_LR=0.053 and WARMDOWN_RATIO=0.45. Since exp64
+exp73	Decrease UNEMBEDDING_LR from 0.003 to 0.0028	1.345052	15.5	62291	19.3	572	discard	The current best configuration has UNEMBEDDING_LR at 0.003, but experiments 41, 
+exp74	Decrease WARMDOWN_RATIO from 0.45 to 0.43	1.343404	15.5	62291	19.3	572	discard	The best result came from increasing WARMDOWN_RATIO to 0.45, but exp68 showed th
+exp75	Increase WARMDOWN_RATIO from 0.45 to 0.47	1.342376	15.5	62312	19.3	572	keep	The recent experiments show a clear trend where increasing WARMDOWN_RATIO improv
+exp76	Increase WARMDOWN_RATIO from 0.47 to 0.49	1.343569	15.5	62312	19.3	572	discard	The last several experiments show a clear trend where increasing WARMDOWN_RATIO 
+exp77	Increase EMBEDDING_LR from 0.59 to 0.60	1.342970	15.5	62333	19.3	572	discard	We've been fine-tuning around EMBEDDING_LR=0.59 with mixed results. Since we hav
+exp78	Decrease SCALAR_LR from 0.3 to 0.295	1.342957	15.5	62291	19.3	572	discard	The current best result has SCALAR_LR at 0.3, and recent experiments show that d
+exp79	Decrease UNEMBEDDING_LR from 0.003 to 0.0027	1.345607	15.5	61896	19.2	569	discard	The current configuration has reached a strong local optimum, but there's still 
+exp80	Decrease MATRIX_LR from 0.053 to 0.051	1.343030	15.5	62229	19.2	570	discard	The current best result uses MATRIX_LR=0.053, but we've seen that fine-tuning th
+exp81	Decrease SCALAR_LR from 0.3 to 0.28	1.346783	15.5	61231	19.0	563	discard	Looking at the recent experiments, we've been fine-tuning around the current opt
+exp82	Decrease WEIGHT_DECAY from 0.12 to 0.115	1.345032	15.5	61312	19.0	562	discard	The current best result has WEIGHT_DECAY=0.12, and we've seen that decreasing we
+exp83	Increase SCALAR_LR from 0.3 to 0.31	1.345568	15.5	61584	19.0	565	discard	The current best configuration has fine-tuned most hyperparameters, but SCALAR_L
+exp84	Decrease EMBEDDING_LR from 0.59 to 0.575	1.344802	15.5	61251	19.0	563	discard	The current best configuration has EMBEDDING_LR at 0.59, and recent experiments 
+exp85	Increase SCALAR_LR from 0.3 to 0.305	1.346698	15.5	60898	18.8	557	discard	The recent experiments show that SCALAR_LR is still a sensitive hyperparameter, 
+exp86	Decrease MATRIX_LR from 0.053 to 0.0525	1.349727	15.5	59254	18.2	542	discard	The current best result has MATRIX_LR=0.053, and we've seen that small decreases
+exp87	Increase EMBEDDING_LR from 0.59 to 0.595	1.346481	15.5	60666	18.7	555	discard	The current best configuration has EMBEDDING_LR at 0.59, and small increases in 

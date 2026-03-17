@@ -9,7 +9,6 @@ wheels/
 # Virtual environments
 .venv
 worktrees/
-results/
 queue/
 
 # Agent prompt files (generated per-session by launchers)
@@ -19,5 +18,5 @@ AGENTS.md
 # Experimental code/artifacts
 dev/
 
-# Results file
-results.tsv
+# Results file (root only — results/<dataset>/results.tsv is tracked)
+/results.tsv

@@ -60,12 +60,13 @@ VAL_SHARD_INDEX = 6542  # Must match prepare.py's VAL_SHARD
 
 DATASETS = {
     "fineweb-edu": {
-        "description": "FineWeb-Edu: 1.3T tokens of educationally-scored web text",
+        "description": "FineWeb-Edu: 1.3T tokens of educationally-scored web text (10BT sample)",
         "base_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu/resolve/main/sample/10BT",
         "source_files": [f"{i:03d}_00000.parquet" for i in range(14)],
         "text_column": "text",
-        "extra_columns": ["score", "int_score"],  # educational quality scores
-        "min_score": None,  # None = keep all; set to 3+ for higher quality
+        "extra_columns": ["score", "int_score"],
+        "min_score": None,
+        "est_source_size_gb": 2.15,  # per source file
     },
     "fineweb-edu-high": {
         "description": "FineWeb-Edu (score >= 3): highest-quality educational subset",
@@ -73,7 +74,35 @@ DATASETS = {
         "source_files": [f"{i:03d}_00000.parquet" for i in range(14)],
         "text_column": "text",
         "extra_columns": ["score", "int_score"],
-        "min_score": 3,  # Only keep docs with educational score >= 3
+        "min_score": 3,
+        "est_source_size_gb": 2.15,
+    },
+    "cosmopedia-v2": {
+        "description": "Cosmopedia v2: 39M synthetic textbooks/blogposts by Mixtral (from SmolLM-Corpus)",
+        "base_url": "https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/resolve/main/cosmopedia-v2",
+        "source_files": [f"train-{i:05d}-of-00104.parquet" for i in range(104)],
+        "text_column": "text",
+        "extra_columns": [],
+        "min_score": None,
+        "est_source_size_gb": 1.18,
+    },
+    "slimpajama": {
+        "description": "SlimPajama-6B: 6B tokens from deduplicated RedPajama (C4, Wikipedia, Books, ArXiv, Code)",
+        "base_url": "https://huggingface.co/datasets/DKYoon/SlimPajama-6B/resolve/refs%2Fconvert%2Fparquet/default/train",
+        "source_files": [f"{i:04d}.parquet" for i in range(48)],
+        "text_column": "text",
+        "extra_columns": [],
+        "min_score": None,
+        "est_source_size_gb": 0.29,
+    },
+    "python-edu": {
+        "description": "Python-Edu: 7.7M educational Python files scored for quality (from SmolLM-Corpus)",
+        "base_url": "https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/resolve/main/python-edu",
+        "source_files": [f"train-{i:05d}-of-00025.parquet" for i in range(25)],
+        "text_column": "text",
+        "extra_columns": ["score", "int_score"],
+        "min_score": None,
+        "est_source_size_gb": 0.4,
     },
 }
 
@@ -332,11 +361,14 @@ def main():
 Available datasets:
   fineweb-edu       FineWeb-Edu 10BT sample (all quality levels)
   fineweb-edu-high  FineWeb-Edu 10BT sample (score >= 3 only)
+  cosmopedia-v2     Synthetic textbooks/blogposts by Mixtral (39M docs)
+  slimpajama        SlimPajama-6B multi-source blend (6B tokens)
+  python-edu        Educational Python code files (7.7M files)
 
 Examples:
   uv run convert_dataset.py fineweb-edu
-  uv run convert_dataset.py fineweb-edu --num-shards 20
-  uv run convert_dataset.py fineweb-edu-high --num-source 5
+  uv run convert_dataset.py cosmopedia-v2 --num-shards 10 --num-source 3
+  uv run convert_dataset.py slimpajama --num-shards 10 --num-source 6
   uv run convert_dataset.py --restore
   uv run convert_dataset.py --list-backups
         """,
@@ -412,7 +444,8 @@ Examples:
     base_url = dataset_config["base_url"]
 
     # Estimate sizes
-    est_download_gb = args.num_source * 2.15
+    est_source_gb = dataset_config.get("est_source_size_gb", 1.0)
+    est_download_gb = args.num_source * est_source_gb
     est_output_gb = (args.num_shards + 1) * 0.088
     print(f"  Estimated download: ~{est_download_gb:.1f} GB")
     print(f"  Estimated output: ~{est_output_gb:.1f} GB")
