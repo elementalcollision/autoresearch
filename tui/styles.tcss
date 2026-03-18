@@ -1,0 +1,63 @@
+/* Autoresearch TUI Dashboard Styles */
+
+Screen {
+    layout: vertical;
+}
+
+#top-row {
+    layout: horizontal;
+    height: 9;
+    min-height: 9;
+}
+
+#training-panel {
+    width: 65%;
+    border: solid $accent;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+#hardware-panel {
+    width: 35%;
+    border: solid $secondary;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+#experiment-status-panel {
+    height: 5;
+    min-height: 5;
+    border: solid $warning;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+#experiments-panel {
+    height: 1fr;
+    min-height: 6;
+    border: solid $primary;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+#activity-panel {
+    height: 1fr;
+    min-height: 6;
+    border: solid $success;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+DataTable {
+    height: 100%;
+}
+
+DataTable > .datatable--header {
+    text-style: bold;
+    color: $text;
+    background: $surface;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent 20%;
+}
