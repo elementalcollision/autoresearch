@@ -18,6 +18,24 @@ Credential management:
 import sys
 
 
+def _pop_arg(args, flag):
+    """Remove a flag from args and return its value. Handles --flag=value and --flag value."""
+    # Check --flag=value format first
+    for i, a in enumerate(args):
+        if a.startswith(f"{flag}="):
+            args.pop(i)
+            return a.split("=", 1)[1]
+    # Check --flag value format
+    if flag in args:
+        idx = args.index(flag)
+        if idx + 1 < len(args):
+            val = args[idx + 1]
+            args.pop(idx)  # remove flag
+            args.pop(idx)  # remove value
+            return val
+    return None
+
+
 def main():
     args = sys.argv[1:]
 
@@ -72,28 +90,16 @@ def main():
         mode = "agent"
         args.remove("--agent")
 
-    if "--tag" in args:
-        idx = args.index("--tag")
-        if idx + 1 < len(args):
-            run_tag = args[idx + 1]
-            args.pop(idx)  # remove --tag
-            args.pop(idx)  # remove value
-        else:
-            print("Error: --tag requires a value")
-            sys.exit(1)
+    tag_val = _pop_arg(args, "--tag")
+    if tag_val is not None:
+        run_tag = tag_val
 
-    if "--max" in args:
-        idx = args.index("--max")
-        if idx + 1 < len(args):
-            try:
-                max_experiments = int(args[idx + 1])
-            except ValueError:
-                print("Error: --max requires an integer")
-                sys.exit(1)
-            args.pop(idx)
-            args.pop(idx)
-        else:
-            print("Error: --max requires a value")
+    max_val = _pop_arg(args, "--max")
+    if max_val is not None:
+        try:
+            max_experiments = int(max_val)
+        except ValueError:
+            print("Error: --max requires an integer")
             sys.exit(1)
 
     # Remaining positional arg is the training script
