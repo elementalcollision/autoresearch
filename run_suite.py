@@ -254,31 +254,32 @@ def count_experiments(dataset_name):
 
 
 def run_agent(dataset_name, tag, max_experiments=80):
-    """Run the autonomous agent for a dataset."""
+    """Run the autonomous agent for a dataset.
+
+    Uses the headless orchestrator (no TUI) so the run survives terminal
+    disconnects, SSH timeouts, and overnight unattended operation.
+    The TUI dashboard (dashboard.py --agent) is for interactive use only.
+    """
+    from tui.headless import run_headless
+
     results_dir = get_results_dir(dataset_name)
+    results_tsv = str(results_dir / "results.tsv")
+    run_tag = f"{tag}-{dataset_name}"
 
     print(f"\n{'='*60}")
-    print(f"  Running agent: {dataset_name}")
-    print(f"  Tag: {tag}")
+    print(f"  Running agent (headless): {dataset_name}")
+    print(f"  Tag: {run_tag}")
     print(f"  Max experiments: {max_experiments}")
-    print(f"  Results: {results_dir}")
+    print(f"  Results: {results_tsv}")
     print(f"{'='*60}\n")
 
-    # Run the dashboard in agent mode
-    cmd = [
-        "uv", "run", "--extra", "mlx", "--extra", "agent",
-        "dashboard.py",
-        "--agent",
-        f"--tag={tag}-{dataset_name}",
-        f"--max={max_experiments}",
-    ]
-
     try:
-        result = subprocess.run(cmd, cwd=PROJECT_ROOT, timeout=max_experiments * 400)
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        print(f"  Agent timed out after {max_experiments * 400}s")
-        return False
+        return run_headless(
+            training_script="train_mlx.py",
+            results_path=results_tsv,
+            tag=run_tag,
+            max_experiments=max_experiments,
+        )
     except KeyboardInterrupt:
         print(f"\n  Agent interrupted by user")
         return False
@@ -425,16 +426,8 @@ def main():
             print(f"  Prepared {dataset_name} (--prepare-only, skipping agent run)")
             continue
 
-        # Run agent
+        # Run agent (headless — no TUI, survives terminal disconnect)
         run_agent(dataset_name, tag, args.max_experiments)
-
-        # Copy results to dataset-specific directory
-        # The agent writes results.tsv in the project root via the orchestrator
-        src_results = PROJECT_ROOT / "results.tsv"
-        if src_results.exists():
-            dest = get_results_dir(dataset_name) / "results.tsv"
-            shutil.copy2(src_results, dest)
-            print(f"  Results saved to {dest}")
 
     # --- Final status ---
     print_status()
