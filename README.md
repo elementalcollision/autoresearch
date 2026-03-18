@@ -81,99 +81,35 @@ Check your detected hardware and suggested config:
 uv run -c "from backends import print_hardware_summary; print_hardware_summary()"
 ```
 
-## TUI Dashboard
+## TUI Dashboard & Agent Mode
 
-A real-time terminal dashboard for monitoring training runs, built with [Textual](https://textual.textualize.io/). Supports both single training runs and **autonomous agent mode** where Claude drives the full experiment loop.
-
-```bash
-# Install with TUI support
-uv sync --extra tui             # TUI only (single-run mode)
-uv sync --extra agent           # TUI + Claude API (agent mode)
-uv sync --extra all             # Everything (backends + TUI + agent)
-
-# Single training run (starts training, shows live metrics)
-uv run dashboard.py              # MLX backend (default)
-uv run dashboard.py train.py     # MPS backend
-
-# Autonomous agent mode (requires ANTHROPIC_API_KEY)
-ANTHROPIC_API_KEY=sk-ant-... uv run dashboard.py --agent
-ANTHROPIC_API_KEY=sk-ant-... uv run dashboard.py --agent --tag mar16 --max 50
-
-# Watch mode (no training, monitor results.tsv only)
-uv run dashboard.py --watch
-```
-
-### Dashboard panels
-
-- **Training**: Live progress bar, loss, tok/sec, MFU, ETA, learning rate
-- **Hardware**: Apple Silicon chip info, memory usage, GPU cores, peak TFLOPS
-- **Experiment Loop** *(agent mode only)*: Current status (thinking/training/evaluating), run counts, kept/discarded, best val_bpb
-- **Experiments**: History table loaded from `results.tsv`
-- **Activity Log**: Scrollable log of startup info, step summaries, and final results
-
-### Agent mode
-
-In agent mode (`--agent`), the dashboard runs the full autoresearch experiment loop autonomously:
-
-1. Creates a branch `autoresearch/<tag>` and runs a baseline training
-2. Calls Claude API with current hyperparameters + results history
-3. Claude proposes one code change with reasoning
-4. Applies the change, validates syntax, git commits
-5. Trains for 5 minutes, evaluates val_bpb
-6. **Keep** if improved (commit stays), **discard** if worse (git reset)
-7. Records results in `results.tsv`, loops back to step 2
-
-This replicates the upstream autoresearch workflow from `program.md` but with a visual dashboard — no manual intervention needed.
-
-**LLM backends**: Claude API (Option A, production-ready) or local models via Ollama (Option B, placeholder for future implementation — set `OLLAMA_MODEL` env var).
-
-### Credentials
-
-Agent mode requires an Anthropic API key. The dashboard resolves credentials automatically from multiple sources:
-
-| Priority | Source | Setup |
-|----------|--------|-------|
-| 1 | `ANTHROPIC_API_KEY` env var | `export ANTHROPIC_API_KEY=sk-ant-...` |
-| 2 | macOS Keychain | `uv run dashboard.py --setup-key` (one-time, recommended) |
-| 3 | Claude Code credentials | Automatic if Claude Code is installed and authenticated |
+A real-time terminal dashboard with autonomous LLM-driven experiment optimization.
 
 ```bash
-# One-time setup: store API key in encrypted macOS Keychain
-uv run dashboard.py --setup-key
+uv sync --extra all                              # Install all dependencies
 
-# Check which credential source is active
-uv run dashboard.py --check-key
-
-# Remove stored key from Keychain
-uv run dashboard.py --clear-key
+uv run dashboard.py                              # Single training run with live metrics
+uv run dashboard.py --agent --tag my-run         # Autonomous experiment loop (requires API key)
+uv run dashboard.py --agent --tag my-run --max 50 # Limit to 50 experiments
 ```
 
-If you're already authenticated with Claude Code, the dashboard will attempt to use those credentials as a fallback. For reliable agent mode, a proper API key (via `--setup-key` or env var) is recommended.
+Agent mode requires an Anthropic API key — run `uv run dashboard.py --setup-key` for one-time setup via macOS Keychain.
 
-Keybindings: `q` quit, `d` toggle dark/light mode, `r` reload experiments table.
+See the [TUI Dashboard](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) wiki page for panels, keybindings, credentials, agent mode details, and troubleshooting.
 
-The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation and screenshots.
+## Multi-Dataset Experiments
 
-## Multi-dataset experiments
-
-Run autonomous experiments across different training datasets to compare how optimal hyperparameters vary by data distribution.
+Run experiments across different training datasets to compare how optimal hyperparameters vary by data distribution.
 
 ```bash
-# Convert and run a single dataset
-uv run convert_dataset.py fineweb-edu          # Download + convert FineWeb-Edu
-uv run prepare.py                               # Retrain tokenizer
-uv run dashboard.py --agent --tag fineweb-edu   # Run agent
-
-# Run the full suite (climbmix → fineweb-edu → cosmopedia-v2 → ...)
-uv run run_suite.py
-
-# Compare results across datasets
-uv run compare_datasets.py
+uv run convert_dataset.py fineweb-edu            # Download + convert a dataset
+uv run run_suite.py                              # Run the full multi-dataset sweep
+uv run compare_datasets.py                       # Cross-dataset analysis + charts
 ```
 
-**Available datasets**: climbmix (default), fineweb-edu, fineweb-edu-high, cosmopedia-v2, slimpajama, python-edu. The conversion script handles downloading, re-chunking to match the expected shard format, backup/restore of the original dataset, and tokenizer clearing.
+**Available datasets**: climbmix (default), fineweb-edu, fineweb-edu-high, cosmopedia-v2, slimpajama, python-edu.
 
-See the [Multi-Dataset Experiments wiki page](https://github.com/elementalcollision/autoresearch/wiki/Multi-Dataset-Experiments) for architecture details and the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for analysis of how optimal configurations diverge across datasets.
+See the [Multi-Dataset Experiments](https://github.com/elementalcollision/autoresearch/wiki/Multi-Dataset-Experiments) wiki page for architecture, usage, and the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for analysis of how optimal configurations diverge across datasets.
 
 ## Project structure
 
