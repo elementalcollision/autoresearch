@@ -8,11 +8,15 @@ Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/ka
 >
 > | Chip | Date | Best val_bpb | Improvement | Branch |
 > |------|------|-------------|-------------|--------|
-> | **M5 Max** (64 GB) | [Mar 15](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-15-2026-M5-Max) | **1.320** | −36.4% | [`autoresearch/mar14-m5max`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar14-m5max) |
-> | M4 Pro (24 GB) | [Mar 14](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-14-2026-M4-Pro) | 1.429 | −29.5% | [`autoresearch/mar14`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar14) |
-> | M1 Max (64 GB) | [Mar 11](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) | 1.621 | −22.6% | [`autoresearch/mar11`](https://github.com/elementalcollision/autoresearch/tree/autoresearch/mar11) |
+> | Chip | Dataset | Date | Best val_bpb | Improvement |
+> |------|---------|------|-------------|-------------|
+> | **M5 Max** (64 GB) | [FineWeb-Edu](https://github.com/elementalcollision/autoresearch/wiki/FineWeb-Edu-Agent-Run-Mar-17-2026) | Mar 17 | **1.295** | −8.1% (101 experiments) |
+> | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Agent-Run-Mar-16-2026) | Mar 16 | **1.335** | −1.3% (81 experiments) |
+> | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-15-2026-M5-Max) | Mar 15 | **1.320** | −36.4% (17 experiments) |
+> | M4 Pro (24 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-14-2026-M4-Pro) | Mar 14 | 1.429 | −29.5% |
+> | M1 Max (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) | Mar 11 | 1.621 | −22.6% |
 >
-> Each generation finds different optimal trade-offs: M1 Max narrowed MLP (4x→1.5x), M4 Pro shrank batches (64K→8K), M5 Max tuned optimization (LR 0.04→0.06, WD 0.2→0.1) while keeping the full architecture. Step count within the 5-minute budget remains the dominant factor across all chips.
+> **Cross-dataset finding**: Optimal hyperparameters are dataset-dependent. FineWeb-Edu converges to a half-width model (AR=32) running 2× more gradient steps, while climbmix keeps the full architecture. See the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for full analysis.
 
 ## What is this?
 
@@ -52,18 +56,6 @@ uv run prepare.py
 uv run train_mlx.py            # MLX (recommended)
 uv run train.py                # Auto-detect backend
 ```
-
-### Optional: TUI Dashboard
-
-A real-time terminal dashboard for monitoring training is available on the [`feature/tui-dashboard`](https://github.com/elementalcollision/autoresearch/tree/feature/tui-dashboard) branch:
-
-```bash
-git checkout feature/tui-dashboard
-uv sync --extra tui              # or --extra all for everything
-uv run dashboard.py              # Launches TUI + starts training
-```
-
-The dashboard shows live training progress (loss, speed, MFU, ETA), hardware info, experiment history, and an activity log — all in a terminal UI. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation, screenshots, and troubleshooting.
 
 ## Backend selection
 
@@ -162,10 +154,34 @@ Keybindings: `q` quit, `d` toggle dark/light mode, `r` reload experiments table.
 
 The TUI runs training as a subprocess with zero changes to the training scripts — `uv run train_mlx.py` still works exactly as before. See the [TUI Dashboard wiki page](https://github.com/elementalcollision/autoresearch/wiki/TUI-Dashboard) for full documentation and screenshots.
 
+## Multi-dataset experiments
+
+Run autonomous experiments across different training datasets to compare how optimal hyperparameters vary by data distribution.
+
+```bash
+# Convert and run a single dataset
+uv run convert_dataset.py fineweb-edu          # Download + convert FineWeb-Edu
+uv run prepare.py                               # Retrain tokenizer
+uv run dashboard.py --agent --tag fineweb-edu   # Run agent
+
+# Run the full suite (climbmix → fineweb-edu → cosmopedia-v2 → ...)
+uv run run_suite.py
+
+# Compare results across datasets
+uv run compare_datasets.py
+```
+
+**Available datasets**: climbmix (default), fineweb-edu, fineweb-edu-high, cosmopedia-v2, slimpajama, python-edu. The conversion script handles downloading, re-chunking to match the expected shard format, backup/restore of the original dataset, and tokenizer clearing.
+
+See the [Multi-Dataset Experiments wiki page](https://github.com/elementalcollision/autoresearch/wiki/Multi-Dataset-Experiments) for architecture details and the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for analysis of how optimal configurations diverge across datasets.
+
 ## Project structure
 
 ```
 dashboard.py            TUI dashboard entry point
+run_suite.py            Multi-dataset experiment orchestrator
+compare_datasets.py     Cross-dataset analysis and visualization
+convert_dataset.py      Download and convert alternative datasets
 prepare.py              Data prep, tokenizer, dataloader, evaluation (do not modify)
 train.py                MPS training script + backend dispatch (agent modifies this)
 train_mlx.py            MLX training script (agent modifies this)
@@ -186,6 +202,10 @@ tui/
   hardware.py           Apple Silicon hardware detection (chip, cores, memory, TFLOPS)
   experiments.py        results.tsv loader for TUI table display
   styles.tcss           CSS layout for panel styling
+docs/
+  evaluating-results.md Guide for noise floor estimation and Pareto efficiency
+results/
+  <dataset>/results.tsv Per-dataset experiment results
 pyproject.toml          Dependencies with optional groups (mlx, mps, tui, agent, all)
 ```
 
