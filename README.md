@@ -6,8 +6,6 @@ Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/ka
 
 > **Latest results**: See the [experiment wiki](https://github.com/elementalcollision/autoresearch/wiki) for full details per chip.
 >
-> | Chip | Date | Best val_bpb | Improvement | Branch |
-> |------|------|-------------|-------------|--------|
 > | Chip | Dataset | Date | Best val_bpb | Improvement |
 > |------|---------|------|-------------|-------------|
 > | **M5 Max** (64 GB) | [FineWeb-Edu](https://github.com/elementalcollision/autoresearch/wiki/FineWeb-Edu-Agent-Run-Mar-17-2026) | Mar 17 | **1.295** | −8.1% (101 experiments) |
