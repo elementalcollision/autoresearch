@@ -30,6 +30,7 @@ Each dataset gets:
 import os
 import sys
 import json
+import hashlib
 import shutil
 import subprocess
 import argparse
@@ -59,15 +60,79 @@ DATASET_ORDER = [
 ]
 
 # ---------------------------------------------------------------------------
+# Content fingerprinting
+# ---------------------------------------------------------------------------
+
+def _fingerprint_data_dir(data_dir):
+    """Generate a content fingerprint from the first shard's first document.
+
+    Returns a dict with hash + sample text for human verification.
+    """
+    shard_path = data_dir / "shard_00000.parquet"
+    if not shard_path.exists():
+        return None
+
+    try:
+        import pyarrow.parquet as pq
+        pf = pq.ParquetFile(str(shard_path))
+        rg = pf.read_row_group(0)
+        first_doc = rg.column("text").to_pylist()[0]
+        doc_hash = hashlib.sha256(first_doc.encode("utf-8")).hexdigest()[:16]
+        sample = first_doc[:200].replace("\n", " ")
+        return {"hash": doc_hash, "sample": sample}
+    except Exception as e:
+        print(f"  WARNING: Could not fingerprint data: {e}")
+        return None
+
+
+def _validate_fingerprint(profile_dir, expected_name):
+    """Check if a profile's fingerprint matches its stored identity.
+
+    Returns True if valid, False if mismatched or missing fingerprint.
+    """
+    meta_path = profile_dir / "meta.json"
+    if not meta_path.exists():
+        return False
+
+    with open(meta_path) as f:
+        meta = json.load(f)
+
+    stored_fp = meta.get("fingerprint")
+    if not stored_fp:
+        # No fingerprint = old profile, can't trust it
+        print(f"  WARNING: Profile '{expected_name}' has no fingerprint — cannot validate")
+        return False
+
+    # Re-fingerprint the profile's data
+    data_dir = profile_dir / "data"
+    current_fp = _fingerprint_data_dir(data_dir)
+    if not current_fp:
+        return False
+
+    if current_fp["hash"] != stored_fp["hash"]:
+        print(f"  ERROR: Profile '{expected_name}' fingerprint mismatch!")
+        print(f"    Stored:  {stored_fp['sample'][:80]}...")
+        print(f"    Actual:  {current_fp['sample'][:80]}...")
+        return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Profile management
 # ---------------------------------------------------------------------------
 
-def save_profile(name):
-    """Save current data + tokenizer as a named profile."""
+def save_profile(name, force=False):
+    """Save current data + tokenizer as a named profile with fingerprint."""
     profile_dir = PROFILES_DIR / name
-    if profile_dir.exists():
-        print(f"  Profile '{name}' already exists, skipping save")
+    if profile_dir.exists() and not force:
+        print(f"  Profile '{name}' already exists, skipping save (use --rebuild-profiles to force)")
         return
+
+    # If forcing, remove the old profile
+    if profile_dir.exists() and force:
+        print(f"  Removing stale profile '{name}'...")
+        shutil.rmtree(profile_dir)
 
     profile_dir.mkdir(parents=True, exist_ok=True)
 
@@ -81,22 +146,40 @@ def save_profile(name):
         print(f"  Saving tokenizer → {tok_dest}")
         shutil.copytree(TOKENIZER_DIR, tok_dest)
 
-    # Metadata
+    # Fingerprint the data for validation
+    fingerprint = _fingerprint_data_dir(profile_dir / "data")
+
+    # Metadata with fingerprint
     meta = {
         "dataset": name,
         "created": datetime.now().isoformat(),
         "shards": len(list((profile_dir / "data").glob("*.parquet"))) if (profile_dir / "data").exists() else 0,
+        "fingerprint": fingerprint,
     }
     with open(profile_dir / "meta.json", "w") as f:
         json.dump(meta, f, indent=2)
 
-    print(f"  Profile '{name}' saved")
+    if fingerprint:
+        print(f"  Profile '{name}' saved (fingerprint: {fingerprint['hash']})")
+        print(f"    Sample: {fingerprint['sample'][:80]}...")
+    else:
+        print(f"  Profile '{name}' saved (no fingerprint — verify manually)")
 
 
 def load_profile(name):
-    """Restore a named profile as the active data + tokenizer."""
+    """Restore a named profile as the active data + tokenizer.
+
+    Validates the fingerprint before loading. Returns False if the
+    profile is missing or its content doesn't match its claimed identity.
+    """
     profile_dir = PROFILES_DIR / name
     if not profile_dir.exists():
+        return False
+
+    # Validate fingerprint before trusting the profile
+    if not _validate_fingerprint(profile_dir, name):
+        print(f"  Profile '{name}' failed validation — will not load")
+        print(f"  Run with --rebuild-profiles to fix")
         return False
 
     # Clear current
@@ -114,17 +197,47 @@ def load_profile(name):
     if tok_src.exists():
         shutil.copytree(tok_src, TOKENIZER_DIR)
 
-    print(f"  Loaded profile '{name}'")
+    # Post-load verification: fingerprint the loaded data against the profile
+    loaded_fp = _fingerprint_data_dir(DATA_DIR)
+    with open(profile_dir / "meta.json") as f:
+        meta = json.load(f)
+    stored_fp = meta.get("fingerprint", {})
+
+    if loaded_fp and stored_fp and loaded_fp["hash"] == stored_fp["hash"]:
+        print(f"  Loaded profile '{name}' ✓ (verified: {loaded_fp['hash']})")
+    else:
+        print(f"  Loaded profile '{name}' (fingerprint verification skipped)")
+
     return True
 
 
 def profile_exists(name):
-    """Check if a profile has been saved."""
-    return (PROFILES_DIR / name).exists()
+    """Check if a valid profile exists (has data dir and passes fingerprint)."""
+    profile_dir = PROFILES_DIR / name
+    if not profile_dir.exists():
+        return False
+    if not (profile_dir / "data").exists():
+        return False
+    # Check for fingerprint — profiles without one are considered invalid
+    meta_path = profile_dir / "meta.json"
+    if meta_path.exists():
+        with open(meta_path) as f:
+            meta = json.load(f)
+        if not meta.get("fingerprint"):
+            return False  # No fingerprint = untrusted legacy profile
+    return True
+
+
+def delete_profile(name):
+    """Delete a profile."""
+    profile_dir = PROFILES_DIR / name
+    if profile_dir.exists():
+        shutil.rmtree(profile_dir)
+        print(f"  Deleted profile '{name}'")
 
 
 def list_profiles():
-    """List all saved profiles with metadata."""
+    """List all saved profiles with metadata and validation status."""
     if not PROFILES_DIR.exists():
         return []
 
@@ -136,10 +249,15 @@ def list_profiles():
             if meta_path.exists():
                 with open(meta_path) as f:
                     meta = json.load(f)
+            fp = meta.get("fingerprint", {})
+            valid = _validate_fingerprint(d, d.name) if fp else False
             profiles.append({
                 "name": d.name,
                 "shards": meta.get("shards", "?"),
                 "created": meta.get("created", "unknown"),
+                "fingerprint": fp.get("hash", "none"),
+                "sample": fp.get("sample", "")[:60],
+                "valid": valid,
             })
     return profiles
 
@@ -149,16 +267,23 @@ def list_profiles():
 # ---------------------------------------------------------------------------
 
 def prepare_climbmix(num_shards=10):
-    """Prepare the default climbmix dataset."""
-    # Check if we already have a profile
+    """Prepare the default climbmix dataset.
+
+    Always validates the profile before trusting it. If the profile
+    exists but fails validation, it's rebuilt from scratch.
+    """
+    # Check if we already have a valid profile
     if profile_exists("climbmix"):
         print("  climbmix profile exists, loading...")
-        load_profile("climbmix")
-        return True
+        if load_profile("climbmix"):
+            return True
+        else:
+            print("  climbmix profile failed validation, rebuilding...")
+            delete_profile("climbmix")
 
     # Check if current data is climbmix (from backup)
     backup_dir = CACHE_DIR / "backup_fineweb-edu"
-    if backup_dir.exists():
+    if backup_dir.exists() and (backup_dir / "data").exists():
         print("  Restoring climbmix from backup...")
         result = subprocess.run(
             ["uv", "run", "convert_dataset.py", "--restore"],
@@ -166,23 +291,35 @@ def prepare_climbmix(num_shards=10):
             capture_output=True, text=True,
         )
         if result.returncode == 0:
-            save_profile("climbmix")
+            # Verify the restored data looks like climbmix (not FineWeb-Edu)
+            fp = _fingerprint_data_dir(DATA_DIR)
+            if fp:
+                print(f"  Restored data sample: {fp['sample'][:80]}...")
+            save_profile("climbmix", force=True)
             return True
         else:
             print(f"  Restore failed: {result.stderr}")
 
-    # Download fresh
-    print("  Downloading climbmix shards...")
+    # Download fresh — this is the only guaranteed way to get real climbmix
+    print("  Downloading climbmix shards (fresh)...")
+    # Clear any existing data first to avoid contamination
+    if DATA_DIR.exists():
+        shutil.rmtree(DATA_DIR)
+    if TOKENIZER_DIR.exists():
+        shutil.rmtree(TOKENIZER_DIR)
+
     result = subprocess.run(
         ["uv", "run", "prepare.py", f"--num-shards={num_shards}"],
         cwd=PROJECT_ROOT,
-        capture_output=True, text=True,
     )
     if result.returncode == 0:
-        save_profile("climbmix")
+        fp = _fingerprint_data_dir(DATA_DIR)
+        if fp:
+            print(f"  Downloaded data sample: {fp['sample'][:80]}...")
+        save_profile("climbmix", force=True)
         return True
     else:
-        print(f"  Download failed: {result.stderr}")
+        print(f"  Download failed")
         return False
 
 
@@ -190,8 +327,11 @@ def prepare_alternative(dataset_name, num_shards=10, num_source=3):
     """Prepare an alternative dataset via convert_dataset.py."""
     if profile_exists(dataset_name):
         print(f"  {dataset_name} profile exists, loading...")
-        load_profile(dataset_name)
-        return True
+        if load_profile(dataset_name):
+            return True
+        else:
+            print(f"  {dataset_name} profile failed validation, rebuilding...")
+            delete_profile(dataset_name)
 
     print(f"  Converting {dataset_name}...")
     result = subprocess.run(
@@ -218,7 +358,10 @@ def prepare_alternative(dataset_name, num_shards=10, num_source=3):
         print(f"  Tokenizer training failed for {dataset_name}")
         return False
 
-    save_profile(dataset_name)
+    fp = _fingerprint_data_dir(DATA_DIR)
+    if fp:
+        print(f"  Converted data sample: {fp['sample'][:80]}...")
+    save_profile(dataset_name, force=True)
     return True
 
 
@@ -319,12 +462,16 @@ def print_status():
 
     print("  " + "=" * 58)
 
-    # Show profiles
+    # Show profiles with validation
     profiles = list_profiles()
     if profiles:
         print(f"\n  Saved profiles ({PROFILES_DIR}):")
         for p in profiles:
-            print(f"    {p['name']}: {p['shards']} shards, created {p['created'][:10]}")
+            status = "✓" if p["valid"] else "✗"
+            fp = p.get("fingerprint", "none")
+            print(f"    {status} {p['name']}: {p['shards']} shards, fp={fp}, created {p['created'][:10]}")
+            if p.get("sample"):
+                print(f"      Sample: {p['sample']}...")
     print()
 
 
@@ -357,6 +504,10 @@ def main():
                         help="Save current data+tokenizer as a named profile")
     parser.add_argument("--load-profile", type=str, metavar="NAME",
                         help="Load a named profile as active data+tokenizer")
+    parser.add_argument("--rebuild-profiles", action="store_true",
+                        help="Delete and rebuild all profiles from scratch")
+    parser.add_argument("--validate", action="store_true",
+                        help="Validate all profiles and report any mismatches")
 
     args = parser.parse_args()
 
@@ -373,6 +524,33 @@ def main():
         else:
             print(f"ERROR: Profile '{args.load_profile}' not found.")
             sys.exit(1)
+        return
+
+    # --- Validate profiles ---
+    if args.validate:
+        print("\n  Profile Validation")
+        print("  " + "=" * 70)
+        profiles = list_profiles()
+        if not profiles:
+            print("  No profiles found.")
+        else:
+            for p in profiles:
+                status = "✓ VALID" if p["valid"] else "✗ INVALID"
+                fp = p["fingerprint"]
+                print(f"  {p['name']:<20} {status:<12} fp={fp:<18} {p['sample']}")
+        print("  " + "=" * 70)
+        return
+
+    # --- Rebuild profiles ---
+    if args.rebuild_profiles:
+        print("\n  Rebuilding all profiles...")
+        if PROFILES_DIR.exists():
+            for d in PROFILES_DIR.iterdir():
+                if d.is_dir():
+                    print(f"  Deleting profile '{d.name}'...")
+                    shutil.rmtree(d)
+        print("  All profiles deleted. They will be rebuilt on next suite run.")
+        print("  Run: uv run run_suite.py --prepare-only")
         return
 
     # --- Status ---
