@@ -281,26 +281,9 @@ def prepare_climbmix(num_shards=10):
             print("  climbmix profile failed validation, rebuilding...")
             delete_profile("climbmix")
 
-    # Check if current data is climbmix (from backup)
-    backup_dir = CACHE_DIR / "backup_fineweb-edu"
-    if backup_dir.exists() and (backup_dir / "data").exists():
-        print("  Restoring climbmix from backup...")
-        result = subprocess.run(
-            ["uv", "run", "convert_dataset.py", "--restore"],
-            cwd=PROJECT_ROOT,
-            capture_output=True, text=True,
-        )
-        if result.returncode == 0:
-            # Verify the restored data looks like climbmix (not FineWeb-Edu)
-            fp = _fingerprint_data_dir(DATA_DIR)
-            if fp:
-                print(f"  Restored data sample: {fp['sample'][:80]}...")
-            save_profile("climbmix", force=True)
-            return True
-        else:
-            print(f"  Restore failed: {result.stderr}")
-
-    # Download fresh — this is the only guaranteed way to get real climbmix
+    # Download fresh — the only guaranteed way to get real climbmix
+    # (backup restore was removed: the backup_fineweb-edu dir contained
+    # FineWeb-Edu data, not climbmix, causing profile contamination)
     print("  Downloading climbmix shards (fresh)...")
     # Clear any existing data first to avoid contamination
     if DATA_DIR.exists():
