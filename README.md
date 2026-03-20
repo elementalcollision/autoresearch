@@ -8,6 +8,7 @@ Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/ka
 >
 > | Chip | Dataset | Date | Best val_bpb | Improvement |
 > |------|---------|------|-------------|-------------|
+> | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Climbmix-Agent-Run-Mar-19-2026) | Mar 19 | **1.296** | −0.08% (101 experiments) |
 > | **M5 Max** (64 GB) | [FineWeb-Edu](https://github.com/elementalcollision/autoresearch/wiki/FineWeb-Edu-Agent-Run-Mar-17-2026) | Mar 17 | **1.295** | −8.1% (101 experiments) |
 > | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Agent-Run-Mar-16-2026) | Mar 16 | **1.335** | −1.3% (81 experiments) |
 > | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-15-2026-M5-Max) | Mar 15 | **1.320** | −36.4% (17 experiments) |
