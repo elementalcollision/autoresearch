@@ -8,11 +8,12 @@ Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/ka
 >
 > | Chip | Dataset | Date | Best val_bpb | Improvement |
 > |------|---------|------|-------------|-------------|
+> | **M5 Max** (64 GB) | [SlimPajama](https://github.com/elementalcollision/autoresearch/wiki/SlimPajama-Agent-Run-Mar-20-2026) | Mar 20 | **1.526** | −1.0% (101 experiments) |
 > | **M5 Max** (64 GB) | [Cosmopedia-v2](https://github.com/elementalcollision/autoresearch/wiki/Cosmopedia-v2-Agent-Run-Mar-20-2026) | Mar 20 | **0.961** | −0.35% (103 experiments) |
 > | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Climbmix-Agent-Run-Mar-19-2026) | Mar 19 | **1.296** | −0.08% (101 experiments) |
 > | **M5 Max** (64 GB) | [FineWeb-Edu](https://github.com/elementalcollision/autoresearch/wiki/FineWeb-Edu-Agent-Run-Mar-17-2026) | Mar 17 | **1.342** | −4.7% (88 experiments) |
 >
-> **Cross-dataset finding**: All three datasets converge to AR=32 (hardware-optimal), but diverge on UNEMBEDDING_LR and WEIGHT_DECAY (data-specific). See the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for full analysis.
+> **Cross-dataset finding**: All four datasets converge to AR=32 (hardware-optimal). Three of four converge to the exact same hyperparameters — only FineWeb-Edu diverges (possibly path-dependent from starting at defaults). See the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for full analysis.
 
 ## What is this?
 
