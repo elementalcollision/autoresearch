@@ -335,7 +335,7 @@ FINAL_LR_FRAC = 0.0
 
 # Model size
 DEPTH = _hp_defaults['depth']
-DEVICE_BATCH_SIZE = _hp_defaults['device_batch_size']
+DEVICE_BATCH_SIZE = 4
 
 # ---------------------------------------------------------------------------
 # Setup
