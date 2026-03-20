@@ -11,9 +11,6 @@ Apple Silicon dual-backend port of [karpathy/autoresearch](https://github.com/ka
 > | **M5 Max** (64 GB) | [Cosmopedia-v2](https://github.com/elementalcollision/autoresearch/wiki/Cosmopedia-v2-Agent-Run-Mar-20-2026) | Mar 20 | **0.961** | −0.35% (103 experiments) |
 > | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Climbmix-Agent-Run-Mar-19-2026) | Mar 19 | **1.296** | −0.08% (101 experiments) |
 > | **M5 Max** (64 GB) | [FineWeb-Edu](https://github.com/elementalcollision/autoresearch/wiki/FineWeb-Edu-Agent-Run-Mar-17-2026) | Mar 17 | **1.342** | −4.7% (88 experiments) |
-> | **M5 Max** (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-15-2026-M5-Max) | Mar 15 | **1.320** | −36.4% (17 experiments) |
-> | M4 Pro (24 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-14-2026-M4-Pro) | Mar 14 | 1.429 | −29.5% |
-> | M1 Max (64 GB) | [Climbmix](https://github.com/elementalcollision/autoresearch/wiki/Experiment-Results-Mar-11-2026) | Mar 11 | 1.621 | −22.6% |
 >
 > **Cross-dataset finding**: All three datasets converge to AR=32 (hardware-optimal), but diverge on UNEMBEDDING_LR and WEIGHT_DECAY (data-specific). See the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for full analysis.
 
