@@ -105,7 +105,7 @@ uv run run_suite.py                              # Run the full multi-dataset sw
 uv run compare_datasets.py                       # Cross-dataset analysis + charts
 ```
 
-**Available datasets**: climbmix (default), fineweb-edu, fineweb-edu-high, cosmopedia-v2, slimpajama, python-edu.
+**Available datasets**: climbmix (default), fineweb-edu, fineweb-edu-high, cosmopedia-v2, slimpajama.
 
 See the [Multi-Dataset Experiments](https://github.com/elementalcollision/autoresearch/wiki/Multi-Dataset-Experiments) wiki page for architecture, usage, and the [Cross-Dataset Comparison](https://github.com/elementalcollision/autoresearch/wiki/Cross-Dataset-Comparison) for analysis of how optimal configurations diverge across datasets.
 

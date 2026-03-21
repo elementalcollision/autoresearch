@@ -95,15 +95,11 @@ DATASETS = {
         "min_score": None,
         "est_source_size_gb": 0.29,
     },
-    "python-edu": {
-        "description": "Python-Edu: 7.7M educational Python files scored for quality (from SmolLM-Corpus)",
-        "base_url": "https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/resolve/main/python-edu",
-        "source_files": [f"train-{i:05d}-of-00002.parquet" for i in range(2)],
-        "text_column": "text",
-        "extra_columns": ["score", "int_score"],
-        "min_score": None,
-        "est_source_size_gb": 0.4,
-    },
+    # NOTE: python-edu REMOVED — smollm-corpus/python-edu contains only metadata
+    # (blob_id, repo_name, path, score) with NO actual code text. The "text" column
+    # does not exist. Would need a different source dataset for Python code.
+    # See: https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus
+    # Candidates for Round 2: bigcode/starcoderdata, codeparrot/github-code-clean
 }
 
 # ---------------------------------------------------------------------------
@@ -363,8 +359,6 @@ Available datasets:
   fineweb-edu-high  FineWeb-Edu 10BT sample (score >= 3 only)
   cosmopedia-v2     Synthetic textbooks/blogposts by Mixtral (39M docs)
   slimpajama        SlimPajama-6B multi-source blend (6B tokens)
-  python-edu        Educational Python code files (7.7M files)
-
 Examples:
   uv run convert_dataset.py fineweb-edu
   uv run convert_dataset.py cosmopedia-v2 --num-shards 10 --num-source 3

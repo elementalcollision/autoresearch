@@ -56,7 +56,7 @@ DATASET_ORDER = [
     "cosmopedia-v2",
     "slimpajama",
     "fineweb-edu-high",
-    "python-edu",
+    # "python-edu",  # REMOVED: smollm-corpus/python-edu has no text column (metadata only)
 ]
 
 # ---------------------------------------------------------------------------
@@ -575,8 +575,7 @@ def main():
             num_source = args.num_source
             if dataset_name == "slimpajama":
                 num_source = max(6, args.num_source)  # smaller files, need more
-            elif dataset_name == "python-edu":
-                num_source = max(5, args.num_source)  # smaller files
+            # python-edu removed: smollm-corpus has no text column
             success = prepare_alternative(dataset_name, args.num_shards, num_source)
 
         if not success:
