@@ -97,9 +97,37 @@ DATASETS = {
     },
     # NOTE: python-edu REMOVED — smollm-corpus/python-edu contains only metadata
     # (blob_id, repo_name, path, score) with NO actual code text. The "text" column
-    # does not exist. Would need a different source dataset for Python code.
-    # See: https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus
-    # Candidates for Round 2: bigcode/starcoderdata, codeparrot/github-code-clean
+    # does not exist. Replaced by github-code-python below.
+
+    # --- Round 2 datasets ---------------------------------------------------
+
+    "fineweb": {
+        "description": "FineWeb: unfiltered web crawl, 10BT sample (no quality scoring — compare with fineweb-edu)",
+        "base_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb/resolve/main/sample/10BT",
+        "source_files": [f"{i:03d}_00000.parquet" for i in range(15)],
+        "text_column": "text",
+        "extra_columns": [],
+        "min_score": None,
+        "est_source_size_gb": 2.15,  # per file (~2.15 GB × 14 + 0.575 GB final)
+    },
+    "github-code-python": {
+        "description": "GitHub Code Clean (Python): 645K deduplicated Python files, all licenses",
+        "base_url": "https://huggingface.co/datasets/codeparrot/github-code-clean/resolve/refs%2Fconvert%2Fparquet/Python-all/partial-train",
+        "source_files": [f"{i:04d}.parquet" for i in range(10)],
+        "text_column": "code",  # NOTE: source column is "code", written as "text" in output shards
+        "extra_columns": [],
+        "min_score": None,
+        "est_source_size_gb": 0.5,
+    },
+    "slimpajama-627b": {
+        "description": "SlimPajama-627B: full deduplicated RedPajama (627B tokens, 7 sources)",
+        "base_url": "https://huggingface.co/datasets/gmongaras/SlimPajama-627B_Reupload/resolve/refs%2Fconvert%2Fparquet/default/train",
+        "source_files": [f"{i:04d}.parquet" for i in range(50)],
+        "text_column": "text",
+        "extra_columns": [],
+        "min_score": None,
+        "est_source_size_gb": 6.0,  # per file (~6 GB × 50 = ~300 GB total)
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -355,12 +383,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Available datasets:
-  fineweb-edu       FineWeb-Edu 10BT sample (all quality levels)
-  fineweb-edu-high  FineWeb-Edu 10BT sample (score >= 3 only)
-  cosmopedia-v2     Synthetic textbooks/blogposts by Mixtral (39M docs)
-  slimpajama        SlimPajama-6B multi-source blend (6B tokens)
+  Round 1 (validated):
+    fineweb-edu         FineWeb-Edu 10BT sample (all quality levels)
+    fineweb-edu-high    FineWeb-Edu 10BT sample (score >= 3 only)
+    cosmopedia-v2       Synthetic textbooks/blogposts by Mixtral (39M docs)
+    slimpajama          SlimPajama-6B multi-source blend (6B tokens)
+
+  Round 2 (new):
+    fineweb             FineWeb unfiltered 10BT sample (no quality filter)
+    github-code-python  GitHub Code Clean, Python subset (645K files)
+    slimpajama-627b     SlimPajama full 627B tokens (300 GB download!)
+
 Examples:
   uv run convert_dataset.py fineweb-edu
+  uv run convert_dataset.py fineweb
+  uv run convert_dataset.py github-code-python --num-shards 10
   uv run convert_dataset.py cosmopedia-v2 --num-shards 10 --num-source 3
   uv run convert_dataset.py slimpajama --num-shards 10 --num-source 6
   uv run convert_dataset.py --restore

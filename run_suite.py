@@ -56,7 +56,10 @@ DATASET_ORDER = [
     "cosmopedia-v2",
     "slimpajama",
     "fineweb-edu-high",
-    # "python-edu",  # REMOVED: smollm-corpus/python-edu has no text column (metadata only)
+    # --- Round 2 ---
+    "fineweb",
+    "github-code-python",
+    # "slimpajama-627b",  # 300 GB download — enable manually if desired
 ]
 
 # ---------------------------------------------------------------------------
@@ -575,7 +578,10 @@ def main():
             num_source = args.num_source
             if dataset_name == "slimpajama":
                 num_source = max(6, args.num_source)  # smaller files, need more
-            # python-edu removed: smollm-corpus has no text column
+            elif dataset_name == "github-code-python":
+                num_source = max(5, args.num_source)  # moderate size files
+            elif dataset_name == "slimpajama-627b":
+                num_source = min(3, args.num_source)  # 6 GB per file, limit download
             success = prepare_alternative(dataset_name, args.num_shards, num_source)
 
         if not success:
