@@ -355,16 +355,44 @@ def prepare_alternative(dataset_name, num_shards=10, num_source=3):
 # Experiment execution
 # ---------------------------------------------------------------------------
 
-def get_results_dir(dataset_name):
-    """Get the results directory for a dataset."""
-    d = RESULTS_DIR / dataset_name
+def _model_slug(model: str | None) -> str | None:
+    """Convert a model ID to a short directory-safe slug, or None for default.
+
+    Examples:
+        "claude-sonnet-4-20250514" → None (it's the default, use legacy path)
+        "claude-sonnet-4-6"        → "sonnet-4-6"
+        "claude-opus-4-6"          → "opus-4-6"
+    """
+    from tui.llm_backend import ClaudeBackend
+    if model is None or model == ClaudeBackend.DEFAULT_MODEL:
+        return None
+    # Strip "claude-" prefix for shorter directory names
+    slug = model.replace("claude-", "")
+    return slug
+
+
+def get_results_dir(dataset_name, model: str | None = None):
+    """Get the results directory for a dataset, isolated by model.
+
+    Default model (Sonnet 4.0):  results/<dataset>/
+    Non-default model:           results/<model-slug>/<dataset>/
+
+    This keeps Round 1 results untouched while storing new model
+    comparison results in separate directories.
+    """
+    slug = _model_slug(model)
+    if slug:
+        d = RESULTS_DIR / slug / dataset_name
+    else:
+        d = RESULTS_DIR / dataset_name
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def has_results(dataset_name):
+def has_results(dataset_name, model: str | None = None):
     """Check if a dataset already has experiment results."""
-    tsv = RESULTS_DIR / dataset_name / "results.tsv"
+    results_dir = get_results_dir(dataset_name, model)
+    tsv = results_dir / "results.tsv"
     if not tsv.exists():
         return False
     # Count non-header lines
@@ -373,9 +401,10 @@ def has_results(dataset_name):
     return len(lines) > 0
 
 
-def count_experiments(dataset_name):
+def count_experiments(dataset_name, model: str | None = None):
     """Count completed experiments for a dataset."""
-    tsv = RESULTS_DIR / dataset_name / "results.tsv"
+    results_dir = get_results_dir(dataset_name, model)
+    tsv = results_dir / "results.tsv"
     if not tsv.exists():
         return 0
     with open(tsv) as f:
@@ -394,17 +423,20 @@ def run_agent(dataset_name, tag, max_experiments=80, model=None):
     """
     from tui.headless import run_headless
 
-    results_dir = get_results_dir(dataset_name)
+    results_dir = get_results_dir(dataset_name, model)
     results_tsv = str(results_dir / "results.tsv")
     run_tag = f"{tag}-{dataset_name}"
 
     model_display = model or os.environ.get("CLAUDE_MODEL") or "default"
+    slug = _model_slug(model)
     print(f"\n{'='*60}")
     print(f"  Running agent (headless): {dataset_name}")
     print(f"  Tag: {run_tag}")
     print(f"  Max experiments: {max_experiments}")
     print(f"  Model: {model_display}")
     print(f"  Results: {results_tsv}")
+    if slug:
+        print(f"  Isolation: results/{slug}/{dataset_name}/")
     print(f"{'='*60}\n")
 
     try:
@@ -424,35 +456,54 @@ def run_agent(dataset_name, tag, max_experiments=80, model=None):
 # Status and reporting
 # ---------------------------------------------------------------------------
 
+def _best_val_bpb_from_tsv(tsv_path):
+    """Extract best val_bpb from a results.tsv file."""
+    if not tsv_path.exists():
+        return None
+    with open(tsv_path) as f:
+        vals = []
+        for line in f:
+            parts = line.strip().split("\t")
+            if len(parts) >= 8 and parts[7] in ("keep", "baseline"):
+                try:
+                    vals.append(float(parts[2]))
+                except ValueError:
+                    pass
+    return min(vals) if vals else None
+
+
 def print_status():
-    """Print status of all datasets."""
+    """Print status of all datasets, including model-specific results."""
     print("\n  Multi-Dataset Experiment Status")
-    print("  " + "=" * 58)
-    print(f"  {'Dataset':<20} {'Profile':<10} {'Experiments':<12} {'Best val_bpb':<14}")
-    print("  " + "-" * 58)
+    print("  " + "=" * 70)
+    print(f"  {'Dataset':<20} {'Model':<16} {'Profile':<10} {'Experiments':<12} {'Best val_bpb':<14}")
+    print("  " + "-" * 70)
 
     for name in DATASET_ORDER:
         has_profile = "yes" if profile_exists(name) else "no"
+
+        # Default model results
         n_exp = count_experiments(name)
+        best = _best_val_bpb_from_tsv(RESULTS_DIR / name / "results.tsv")
+        best_str = f"{best:.6f}" if best else "—"
+        print(f"  {name:<20} {'default':<16} {has_profile:<10} {n_exp:<12} {best_str:<14}")
 
-        best = "—"
-        tsv = RESULTS_DIR / name / "results.tsv"
-        if tsv.exists():
-            with open(tsv) as f:
-                vals = []
-                for line in f:
-                    parts = line.strip().split("\t")
-                    if len(parts) >= 8 and parts[7] in ("keep", "baseline"):
-                        try:
-                            vals.append(float(parts[2]))
-                        except ValueError:
-                            pass
-                if vals:
-                    best = f"{min(vals):.6f}"
+        # Model-specific results (scan for subdirectories)
+        if RESULTS_DIR.exists():
+            for model_dir in sorted(RESULTS_DIR.iterdir()):
+                if model_dir.is_dir() and (model_dir / name).is_dir():
+                    slug = model_dir.name
+                    # Skip if it's a dataset name (not a model slug)
+                    if slug in [d for d in DATASET_ORDER]:
+                        continue
+                    tsv = model_dir / name / "results.tsv"
+                    n = count_experiments(name, f"claude-{slug}")
+                    if n > 0:
+                        best_m = _best_val_bpb_from_tsv(tsv)
+                        best_m_str = f"{best_m:.6f}" if best_m else "—"
+                        print(f"  {'':<20} {slug:<16} {'':<10} {n:<12} {best_m_str:<14}")
 
-        print(f"  {name:<20} {has_profile:<10} {n_exp:<12} {best:<14}")
-
-    print("  " + "=" * 58)
+    print("  " + "=" * 70)
 
     # Show profiles with validation
     profiles = list_profiles()
@@ -574,9 +625,11 @@ def main():
         print(f"{'#'*60}")
 
         # Skip if completed
-        if args.skip_completed and has_results(dataset_name):
-            n = count_experiments(dataset_name)
-            print(f"  Skipping — already has {n} experiments")
+        if args.skip_completed and has_results(dataset_name, args.model):
+            n = count_experiments(dataset_name, args.model)
+            slug = _model_slug(args.model)
+            loc = f" (model: {slug})" if slug else ""
+            print(f"  Skipping — already has {n} experiments{loc}")
             continue
 
         # Prepare data
