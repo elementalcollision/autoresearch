@@ -98,7 +98,7 @@ DATASETS = {
     "python-edu": {
         "description": "Python-Edu: 7.7M educational Python files scored for quality (from SmolLM-Corpus)",
         "base_url": "https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus/resolve/main/python-edu",
-        "source_files": [f"train-{i:05d}-of-00025.parquet" for i in range(25)],
+        "source_files": [f"train-{i:05d}-of-00002.parquet" for i in range(2)],
         "text_column": "text",
         "extra_columns": ["score", "int_score"],
         "min_score": None,
