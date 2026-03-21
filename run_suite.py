@@ -382,12 +382,15 @@ def count_experiments(dataset_name):
         return sum(1 for l in f if l.strip() and not l.startswith("exp\t"))
 
 
-def run_agent(dataset_name, tag, max_experiments=80):
+def run_agent(dataset_name, tag, max_experiments=80, model=None):
     """Run the autonomous agent for a dataset.
 
     Uses the headless orchestrator (no TUI) so the run survives terminal
     disconnects, SSH timeouts, and overnight unattended operation.
     The TUI dashboard (dashboard.py --agent) is for interactive use only.
+
+    Args:
+        model: Optional Claude model override (e.g. "claude-sonnet-4-20250514").
     """
     from tui.headless import run_headless
 
@@ -395,10 +398,12 @@ def run_agent(dataset_name, tag, max_experiments=80):
     results_tsv = str(results_dir / "results.tsv")
     run_tag = f"{tag}-{dataset_name}"
 
+    model_display = model or os.environ.get("CLAUDE_MODEL") or "default"
     print(f"\n{'='*60}")
     print(f"  Running agent (headless): {dataset_name}")
     print(f"  Tag: {run_tag}")
     print(f"  Max experiments: {max_experiments}")
+    print(f"  Model: {model_display}")
     print(f"  Results: {results_tsv}")
     print(f"{'='*60}\n")
 
@@ -408,6 +413,7 @@ def run_agent(dataset_name, tag, max_experiments=80):
             results_path=results_tsv,
             tag=run_tag,
             max_experiments=max_experiments,
+            model=model,
         )
     except KeyboardInterrupt:
         print(f"\n  Agent interrupted by user")
@@ -494,6 +500,8 @@ def main():
                         help="Delete and rebuild all profiles from scratch")
     parser.add_argument("--validate", action="store_true",
                         help="Validate all profiles and report any mismatches")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Claude model override (e.g. claude-sonnet-4-20250514)")
 
     args = parser.parse_args()
 
@@ -550,11 +558,13 @@ def main():
     # --- Determine which datasets to run ---
     datasets = [args.dataset] if args.dataset else DATASET_ORDER
 
+    model_display = args.model or os.environ.get("CLAUDE_MODEL") or "default"
     print(f"\nMulti-Dataset Experiment Suite")
     print(f"  Tag: {tag}")
     print(f"  Datasets: {', '.join(datasets)}")
     print(f"  Max experiments per dataset: {args.max_experiments}")
     print(f"  Shards per dataset: {args.num_shards}")
+    print(f"  Model: {model_display}")
     print()
 
     # --- Run each dataset ---
@@ -593,7 +603,7 @@ def main():
             continue
 
         # Run agent (headless — no TUI, survives terminal disconnect)
-        run_agent(dataset_name, tag, args.max_experiments)
+        run_agent(dataset_name, tag, args.max_experiments, model=args.model)
 
     # --- Final status ---
     print_status()

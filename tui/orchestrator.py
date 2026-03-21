@@ -62,12 +62,14 @@ class ExperimentOrchestrator:
         max_experiments: int = 100,
         run_tag: str | None = None,
         callbacks: OrchestratorCallbacks | None = None,
+        model: str | None = None,
     ):
         self._training_script = training_script
         self._results_path = results_path
         self._max_experiments = max_experiments
         self._run_tag = run_tag or time.strftime("%b%d").lower()
         self._callbacks = callbacks
+        self._model_override = model  # e.g. "claude-sonnet-4-20250514"
 
         self._git = GitManager()
         self._hw_info = get_hardware_summary()
@@ -163,7 +165,7 @@ class ExperimentOrchestrator:
             # Initialize LLM backend
             self._cb_status("initializing", "Connecting to LLM backend...")
             try:
-                self._llm = get_llm_backend()
+                self._llm = get_llm_backend(model=self._model_override)
                 self._cb_status("initializing", f"LLM: {self._llm.name()}")
             except Exception as e:
                 self._cb_error(f"LLM backend error: {e}")

@@ -103,20 +103,27 @@ def run_headless(
     results_path: str = "results.tsv",
     tag: str | None = None,
     max_experiments: int = 80,
+    model: str | None = None,
 ) -> bool:
     """Run the orchestrator headless (no TUI).
+
+    Args:
+        model: Optional Claude model override (e.g. "claude-sonnet-4-20250514").
+               Falls back to CLAUDE_MODEL env var, then default.
 
     Returns True if the run completed without fatal errors.
     """
     tag = tag or time.strftime("%b%d").lower()
     callbacks = _make_callbacks()
 
+    model_display = model or os.environ.get("CLAUDE_MODEL") or "default"
     print(f"\n{'='*60}")
     print(f"  Headless Experiment Runner")
     print(f"  Tag: {tag}")
     print(f"  Training script: {training_script}")
     print(f"  Results: {results_path}")
     print(f"  Max experiments: {max_experiments}")
+    print(f"  Model: {model_display}")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
 
@@ -126,6 +133,7 @@ def run_headless(
         max_experiments=max_experiments,
         run_tag=tag,
         callbacks=callbacks,
+        model=model,
     )
 
     # Run in the main thread (not as a daemon) — this is the key difference
@@ -151,6 +159,8 @@ def main():
     parser.add_argument("--max", type=int, default=80, help="Max experiments")
     parser.add_argument("--training-script", default="train_mlx.py", help="Training script path")
     parser.add_argument("--results", default="results.tsv", help="Results TSV path")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Claude model override (e.g. claude-sonnet-4-20250514)")
     args = parser.parse_args()
 
     success = run_headless(
@@ -158,6 +168,7 @@ def main():
         results_path=args.results,
         tag=args.tag,
         max_experiments=args.max,
+        model=args.model,
     )
     sys.exit(0 if success else 1)
 
