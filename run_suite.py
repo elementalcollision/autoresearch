@@ -418,6 +418,9 @@ def run_agent(dataset_name, tag, max_experiments=80, model=None):
     disconnects, SSH timeouts, and overnight unattended operation.
     The TUI dashboard (dashboard.py --agent) is for interactive use only.
 
+    Resume-aware: if experiments already exist, the orchestrator will
+    pick up from where it left off (reads results.tsv on startup).
+
     Args:
         model: Optional Claude model override (e.g. "claude-sonnet-4-20250514").
     """
@@ -427,6 +430,7 @@ def run_agent(dataset_name, tag, max_experiments=80, model=None):
     results_tsv = str(results_dir / "results.tsv")
     run_tag = f"{tag}-{dataset_name}"
 
+    existing = count_experiments(dataset_name, model)
     model_display = model or os.environ.get("CLAUDE_MODEL") or "default"
     slug = _model_slug(model)
     print(f"\n{'='*60}")
@@ -435,6 +439,8 @@ def run_agent(dataset_name, tag, max_experiments=80, model=None):
     print(f"  Max experiments: {max_experiments}")
     print(f"  Model: {model_display}")
     print(f"  Results: {results_tsv}")
+    if existing > 0:
+        print(f"  Resuming: {existing} experiments already completed")
     if slug:
         print(f"  Isolation: results/{slug}/{dataset_name}/")
     print(f"{'='*60}\n")
@@ -446,6 +452,7 @@ def run_agent(dataset_name, tag, max_experiments=80, model=None):
             tag=run_tag,
             max_experiments=max_experiments,
             model=model,
+            dataset_name=dataset_name,
         )
     except KeyboardInterrupt:
         print(f"\n  Agent interrupted by user")
@@ -624,13 +631,17 @@ def main():
         print(f"  [{i+1}/{len(datasets)}] Dataset: {dataset_name}")
         print(f"{'#'*60}")
 
-        # Skip if completed
+        # Skip if completed (resume-aware: only skip when target reached)
         if args.skip_completed and has_results(dataset_name, args.model):
             n = count_experiments(dataset_name, args.model)
             slug = _model_slug(args.model)
             loc = f" (model: {slug})" if slug else ""
-            print(f"  Skipping — already has {n} experiments{loc}")
-            continue
+            if n >= args.max_experiments:
+                print(f"  Skipping — already has {n}/{args.max_experiments} experiments{loc}")
+                continue
+            else:
+                print(f"  Resuming — has {n}/{args.max_experiments} experiments{loc}")
+                # Fall through to prepare + run (orchestrator will resume)
 
         # Prepare data
         print(f"\n  Preparing {dataset_name}...")

@@ -3,6 +3,12 @@
 Drives the experiment loop: LLM generates code → commit → train → evaluate →
 keep/discard → repeat. Runs in a background thread and communicates with the
 TUI via callbacks.
+
+Resilience features:
+- Resumes from interrupted runs (reads existing results.tsv)
+- Exponential backoff on API errors (rate limits, 5xx, connection issues)
+- Mid-experiment cleanup on startup (reverts orphaned commits)
+- Heartbeat file for external monitoring
 """
 
 import os
@@ -18,12 +24,14 @@ from tui.git_manager import GitManager
 from tui.hardware import get_hardware_summary
 from tui.llm_backend import LLMBackend, get_llm_backend
 from tui.parser import OutputParser, StepMetrics, FinalMetrics
+from tui.resilience import Heartbeat
 from tui.results import (
     ExperimentResult,
     append_result,
     format_history_for_prompt,
     get_best_result,
     init_results_tsv,
+    load_results,
     next_experiment_number,
 )
 
@@ -53,6 +61,9 @@ class ExperimentOrchestrator:
 
     Runs in a dedicated background thread. Uses the LLM to generate
     code modifications, trains, evaluates, and decides keep/discard.
+
+    Resilience: if the process dies and restarts, it reads results.tsv
+    to determine the last completed experiment and resumes from there.
     """
 
     def __init__(
@@ -63,17 +74,23 @@ class ExperimentOrchestrator:
         run_tag: str | None = None,
         callbacks: OrchestratorCallbacks | None = None,
         model: str | None = None,
+        dataset_name: str = "",
     ):
         self._training_script = training_script
         self._results_path = results_path
         self._max_experiments = max_experiments
         self._run_tag = run_tag or time.strftime("%b%d").lower()
         self._callbacks = callbacks
-        self._model_override = model  # e.g. "claude-sonnet-4-20250514"
+        self._model_override = model  # e.g. "claude-sonnet-4-6"
+        self._dataset_name = dataset_name
 
         self._git = GitManager()
         self._hw_info = get_hardware_summary()
         self._llm: LLMBackend | None = None  # lazy init
+
+        # Heartbeat for external monitors
+        heartbeat_dir = os.path.dirname(os.path.abspath(results_path)) if results_path else "."
+        self._heartbeat = Heartbeat(os.path.join(heartbeat_dir, ".runner_status.json"))
 
         # State
         self._running = False
@@ -119,6 +136,10 @@ class ExperimentOrchestrator:
                 except subprocess.TimeoutExpired:
                     self._proc.kill()
 
+    def cleanup(self) -> None:
+        """Final cleanup — close heartbeat, etc."""
+        self._heartbeat.close()
+
     def is_running(self) -> bool:
         return self._running
 
@@ -152,6 +173,64 @@ class ExperimentOrchestrator:
     def _cb_error(self, message: str) -> None:
         if self._callbacks:
             self._callbacks.on_error(message)
+
+    def _update_heartbeat(self, experiment: int = 0, status: str = "running") -> None:
+        """Update heartbeat with current state."""
+        model_name = self._model_override or "default"
+        self._heartbeat.update(
+            experiment=experiment,
+            status=status,
+            dataset=self._dataset_name,
+            best_bpb=self.best_val_bpb,
+            model=model_name,
+            total=self.total_runs,
+            kept=self.kept_count,
+            discarded=self.discarded_count,
+            crashes=self.crash_count,
+        )
+
+    # ------------------------------------------------------------------
+    # Resume and cleanup
+    # ------------------------------------------------------------------
+
+    def _restore_counters(self) -> None:
+        """Restore kept/discarded/crash counters from existing results."""
+        results = load_results(self._results_path)
+        self.total_runs = len(results)
+        self.kept_count = sum(1 for r in results if r.status in ("keep", "baseline"))
+        self.discarded_count = sum(1 for r in results if r.status == "discard")
+        self.crash_count = sum(1 for r in results if r.status == "crash")
+
+    def _cleanup_interrupted_experiment(self) -> None:
+        """Clean up state from a previously interrupted experiment.
+
+        Handles two cases:
+        1. Uncommitted changes (code modified, never committed) → restore file
+        2. Orphaned commit (committed but training never finished) → revert
+        """
+        # Case 1: Dirty working tree
+        if self._git.has_uncommitted_changes():
+            self._cb_status("initializing", "Cleaning up uncommitted changes from interrupted run")
+            try:
+                self._git.reset_working_tree(self._training_script)
+            except Exception as e:
+                self._cb_error(f"Failed to clean working tree: {e}")
+
+        # Case 2: Orphaned commit (committed but no results recorded)
+        try:
+            head_msg = self._git.head_commit_message()
+            match = re.match(r"exp(\d+):", head_msg)
+            if match:
+                exp_num = int(match.group(1))
+                results = load_results(self._results_path)
+                recorded = {int(r.exp.replace("exp", ""))
+                           for r in results if r.exp.startswith("exp")}
+                if exp_num not in recorded:
+                    self._cb_status("initializing",
+                        f"Reverting orphaned commit: {head_msg[:60]}")
+                    self._git.revert_last_commit()
+        except Exception as e:
+            self._cb_error(f"Orphan commit check failed: {e}")
 
     # ------------------------------------------------------------------
     # Main loop
@@ -197,7 +276,10 @@ class ExperimentOrchestrator:
                     self._cb_status("initializing", f"Creating branch {branch_name}")
                     self._git.create_branch(branch_name)
 
-            # Initialize results
+            # Clean up any interrupted experiment from a previous run
+            self._cleanup_interrupted_experiment()
+
+            # Initialize results (validates existing file)
             init_results_tsv(self._results_path)
 
             # Load existing state (for resuming)
@@ -205,9 +287,18 @@ class ExperimentOrchestrator:
             if existing_best < float("inf"):
                 self.best_val_bpb = existing_best
                 self.best_experiment = existing_exp
-                self._cb_status("initializing", f"Resuming — best so far: {self.best_val_bpb:.4f}")
+
+            # Restore counters from existing results
+            self._restore_counters()
 
             start_exp = next_experiment_number(self._results_path)
+
+            if start_exp > 0:
+                self._cb_status("initializing",
+                    f"Resuming from exp{start_exp} — "
+                    f"{self.total_runs} completed, best: {self.best_val_bpb:.4f}")
+
+            self._update_heartbeat(start_exp, "initializing")
 
             # Run baseline if this is a fresh start
             if start_exp == 0:
@@ -219,10 +310,12 @@ class ExperimentOrchestrator:
                     return
 
             # Main experiment loop
-            for exp_num in range(start_exp, start_exp + self._max_experiments):
+            # max_experiments is the TOTAL target, not "more from here"
+            for exp_num in range(start_exp, self._max_experiments):
                 if self._stop_event.is_set():
                     break
 
+                self._update_heartbeat(exp_num, "running")
                 self._run_experiment(exp_num)
 
                 if self._stop_event.is_set():
@@ -238,6 +331,7 @@ class ExperimentOrchestrator:
             self._cb_error(f"Traceback: {tb}")
         finally:
             self._running = False
+            self._update_heartbeat(status="stopped")
             self._cb_status("stopped", "Experiment loop stopped")
 
     # ------------------------------------------------------------------
@@ -247,6 +341,7 @@ class ExperimentOrchestrator:
     def _run_baseline(self) -> None:
         """Run the training script without modifications to establish baseline."""
         self._cb_experiment_start(0, "baseline (no modifications)", "Establishing baseline with current defaults")
+        self._update_heartbeat(0, "baseline")
 
         final = self._run_training()
 
@@ -284,36 +379,41 @@ class ExperimentOrchestrator:
     # Single experiment
     # ------------------------------------------------------------------
 
-    def _run_experiment(self, exp_num: int) -> None:
-        """Run a single experiment: LLM → modify → commit → train → evaluate."""
+    def _run_experiment(self, exp_num: int, _pause_depth: int = 0) -> None:
+        """Run a single experiment: LLM → modify → commit → train → evaluate.
+
+        If the API is completely unavailable after retries, pauses for 10
+        minutes and retries (up to 3 pause cycles to avoid infinite loops).
+        """
 
         # 1. Ask the LLM for a modification
         self._cb_status("thinking", f"Claude is designing experiment {exp_num}...")
+        self._update_heartbeat(exp_num, "thinking")
 
         current_code = self._extract_hp_block()
         results_history = format_history_for_prompt(self._results_path)
 
-        proposal = None
-        for attempt in range(3):
-            try:
-                proposal = self._llm.generate_experiment(
-                    current_code=current_code,
-                    results_history=results_history,
-                    best_val_bpb=self.best_val_bpb,
-                    best_experiment=self.best_experiment,
-                    hw_info=self._hw_info,
-                )
-                break
-            except Exception as e:
-                self._cb_error(f"LLM error (attempt {attempt + 1}/3): {e}")
-                if attempt < 2:
-                    time.sleep(10 * (attempt + 1))
+        proposal = self._call_llm_with_backoff(
+            current_code, results_history, exp_num
+        )
 
         if proposal is None:
-            self._cb_error(f"Skipping exp{exp_num} — LLM failed after 3 attempts")
-            return
+            # All retries exhausted — pause and retry if we haven't exceeded depth
+            if _pause_depth < 3:
+                self._cb_status("thinking",
+                    f"API unavailable — pausing 10 min (attempt {_pause_depth + 1}/3)")
+                self._update_heartbeat(exp_num, "paused_api_outage")
+                for _ in range(120):  # 10 min in 5s chunks
+                    if self._stop_event.is_set():
+                        return
+                    time.sleep(5)
+                return self._run_experiment(exp_num, _pause_depth + 1)
+            else:
+                self._cb_error(f"Skipping exp{exp_num} — API unavailable after 30 min of retries")
+                return
 
         self._cb_experiment_start(exp_num, proposal.description, proposal.reasoning)
+        self._update_heartbeat(exp_num, "committing")
 
         # 2. Apply code changes
         self._cb_status("committing", f"Applying: {proposal.description}")
@@ -346,10 +446,12 @@ class ExperimentOrchestrator:
 
         # 4. Train
         self._cb_status("training", f"Training exp{exp_num}: {proposal.description}")
+        self._update_heartbeat(exp_num, "training")
         final = self._run_training()
 
         # 5. Evaluate and decide
         self._cb_status("evaluating", "Comparing results...")
+        self._update_heartbeat(exp_num, "evaluating")
 
         if final and final.val_bpb > 0:
             improved = final.val_bpb < self.best_val_bpb
@@ -398,6 +500,67 @@ class ExperimentOrchestrator:
         self.total_runs += 1
         self._cb_experiment_complete(result)
         self._cb_stats_update()
+        self._update_heartbeat(exp_num, "completed")
+
+    # ------------------------------------------------------------------
+    # LLM call with exponential backoff
+    # ------------------------------------------------------------------
+
+    def _call_llm_with_backoff(self, current_code, results_history, exp_num):
+        """Call the LLM with exponential backoff for transient errors.
+
+        Handles:
+        - Rate limits (429): backoff 60s, 120s, 240s, 480s, 600s
+        - Server errors (5xx): backoff 30s, 60s, 120s, 240s, 300s
+        - Connection errors: backoff 30s, 60s, 120s, 240s, 300s
+        - Other errors: backoff 10s, 20s, 30s, 40s, 50s
+
+        Returns the proposal or None if all retries exhausted.
+        """
+        max_retries = 5
+
+        for attempt in range(max_retries):
+            try:
+                proposal = self._llm.generate_experiment(
+                    current_code=current_code,
+                    results_history=results_history,
+                    best_val_bpb=self.best_val_bpb,
+                    best_experiment=self.best_experiment,
+                    hw_info=self._hw_info,
+                )
+                return proposal
+
+            except Exception as e:
+                err_str = str(e).lower()
+                err_type = type(e).__name__
+
+                # Classify the error and determine backoff
+                if "rate" in err_str or "429" in err_str:
+                    wait = min(60 * (2 ** attempt), 600)
+                    self._cb_status("thinking",
+                        f"Rate limited, waiting {wait}s (attempt {attempt+1}/{max_retries})")
+                elif "500" in err_str or "502" in err_str or "503" in err_str or "server" in err_str:
+                    wait = min(30 * (2 ** attempt), 300)
+                    self._cb_status("thinking",
+                        f"API server error, retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                elif "connection" in err_str or "timeout" in err_str:
+                    wait = min(30 * (2 ** attempt), 300)
+                    self._cb_status("thinking",
+                        f"Connection error, retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                else:
+                    wait = 10 * (attempt + 1)
+                    self._cb_error(
+                        f"LLM error ({err_type}, attempt {attempt+1}/{max_retries}): {e}")
+
+                self._update_heartbeat(exp_num, f"retrying_api_{attempt+1}")
+
+                # Sleep in 5s chunks so stop_event can interrupt
+                for _ in range(max(1, wait // 5)):
+                    if self._stop_event.is_set():
+                        return None
+                    time.sleep(5)
+
+        return None
 
     # ------------------------------------------------------------------
     # Training subprocess

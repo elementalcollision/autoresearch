@@ -84,3 +84,11 @@ class GitManager:
             if not line.startswith("??"):
                 return True
         return False
+
+    def reset_working_tree(self, file_path: str) -> None:
+        """Restore a single file to its committed state."""
+        self._run("checkout", "--", file_path)
+
+    def head_commit_message(self) -> str:
+        """Get the commit message of HEAD."""
+        return self._run("log", "--format=%s", "-1")

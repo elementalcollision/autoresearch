@@ -4,6 +4,11 @@ Runs the full autonomous experiment loop without a TUI — output goes to
 stdout/stderr. Used by run_suite.py for unattended overnight runs where
 Textual's terminal requirements would cause OSError [Errno 5].
 
+Resilience features:
+- Signal handlers for graceful shutdown (SIGINT/SIGTERM/SIGHUP)
+- Heartbeat file for external monitoring
+- try/finally to ensure heartbeat cleanup on any exit
+
 Usage:
     # As a module (from run_suite.py):
     from tui.headless import run_headless
@@ -21,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from tui.orchestrator import ExperimentOrchestrator, OrchestratorCallbacks
+from tui.resilience import install_signal_handlers
 from tui.results import ExperimentResult
 
 
@@ -104,12 +110,14 @@ def run_headless(
     tag: str | None = None,
     max_experiments: int = 80,
     model: str | None = None,
+    dataset_name: str = "",
 ) -> bool:
     """Run the orchestrator headless (no TUI).
 
     Args:
         model: Optional Claude model override (e.g. "claude-sonnet-4-20250514").
                Falls back to CLAUDE_MODEL env var, then default.
+        dataset_name: Name of the dataset being trained on (for heartbeat/logging).
 
     Returns True if the run completed without fatal errors.
     """
@@ -120,6 +128,7 @@ def run_headless(
     print(f"\n{'='*60}")
     print(f"  Headless Experiment Runner")
     print(f"  Tag: {tag}")
+    print(f"  Dataset: {dataset_name or 'unknown'}")
     print(f"  Training script: {training_script}")
     print(f"  Results: {results_path}")
     print(f"  Max experiments: {max_experiments}")
@@ -134,11 +143,21 @@ def run_headless(
         run_tag=tag,
         callbacks=callbacks,
         model=model,
+        dataset_name=dataset_name,
     )
+
+    # Install signal handlers for graceful shutdown (SIGINT/SIGTERM/SIGHUP).
+    # First signal: finish current experiment then stop.
+    # Second signal within 5s: force exit.
+    install_signal_handlers(orchestrator.stop)
 
     # Run in the main thread (not as a daemon) — this is the key difference
     # from TUI mode. The orchestrator's _run_loop() runs directly here.
-    orchestrator._run_loop()
+    # try/finally ensures heartbeat is closed even on crash or signal.
+    try:
+        orchestrator._run_loop()
+    finally:
+        orchestrator.cleanup()
 
     print(f"\n{'='*60}")
     print(f"  Run complete: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

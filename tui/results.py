@@ -1,11 +1,14 @@
 """Results management for the experiment orchestrator.
 
 Handles reading, writing, and formatting results.tsv for the experiment loop.
+Uses atomic writes for crash safety — see tui/resilience.py.
 """
 
 import csv
 import os
 from dataclasses import dataclass
+
+from tui.resilience import atomic_append, atomic_write, validate_results_tsv
 
 
 @dataclass
@@ -27,33 +30,46 @@ HEADER = "exp\tdescription\tval_bpb\tpeak_mem_gb\ttok_sec\tmfu\tsteps\tstatus\tn
 
 
 def init_results_tsv(path: str = "results.tsv") -> None:
-    """Create results.tsv with header if it doesn't exist."""
+    """Create results.tsv with header if it doesn't exist.
+
+    If the file exists, validates it and fixes minor corruption
+    (e.g., truncated trailing line from a mid-write crash).
+    """
     if not os.path.exists(path):
-        with open(path, "w") as f:
-            f.write(HEADER)
+        atomic_write(path, HEADER)
+    else:
+        # Validate and fix any corruption from previous crash
+        is_valid, warnings = validate_results_tsv(path)
+        if warnings:
+            import sys
+            for w in warnings:
+                print(f"  ⚠️  results.tsv: {w}", file=sys.stderr, flush=True)
 
 
 def append_result(path: str, result: ExperimentResult) -> None:
-    """Append an experiment result to results.tsv."""
+    """Append an experiment result to results.tsv (crash-safe)."""
     if not os.path.exists(path):
         init_results_tsv(path)
 
-    with open(path, "a") as f:
-        f.write(
-            f"{result.exp}\t"
-            f"{result.description}\t"
-            f"{result.val_bpb:.6f}\t"
-            f"{result.peak_mem_gb:.1f}\t"
-            f"{result.tok_sec}\t"
-            f"{result.mfu:.1f}\t"
-            f"{result.steps}\t"
-            f"{result.status}\t"
-            f"{result.notes}\n"
-        )
+    line = (
+        f"{result.exp}\t"
+        f"{result.description}\t"
+        f"{result.val_bpb:.6f}\t"
+        f"{result.peak_mem_gb:.1f}\t"
+        f"{result.tok_sec}\t"
+        f"{result.mfu:.1f}\t"
+        f"{result.steps}\t"
+        f"{result.status}\t"
+        f"{result.notes}\n"
+    )
+    atomic_append(path, line)
 
 
 def load_results(path: str = "results.tsv") -> list[ExperimentResult]:
-    """Load all experiment results from results.tsv."""
+    """Load all experiment results from results.tsv.
+
+    Skips corrupt lines gracefully (logs warning but doesn't crash).
+    """
     if not os.path.exists(path):
         return []
 
