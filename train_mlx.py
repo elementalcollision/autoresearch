@@ -323,7 +323,7 @@ WINDOW_PATTERN = "SSSL"
 
 # Optimization
 TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
-EMBEDDING_LR = 0.4
+EMBEDDING_LR = 0.38
 UNEMBEDDING_LR = 0.0033
 MATRIX_LR = 0.047
 SCALAR_LR = 0.39
