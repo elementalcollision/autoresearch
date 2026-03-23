@@ -59,6 +59,7 @@ DATASET_ORDER = [
     # --- Round 2 ---
     "fineweb",
     "github-code-python",
+    "pubmed-abstract",
     # "slimpajama-627b",  # 300 GB download — enable manually if desired
 ]
 

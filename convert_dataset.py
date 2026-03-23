@@ -128,6 +128,15 @@ DATASETS = {
         "min_score": None,
         "est_source_size_gb": 6.0,  # per file (~6 GB × 50 = ~300 GB total)
     },
+    "pubmed-abstract": {
+        "description": "PubMed Abstracts: 27.7M biomedical/scientific abstracts from PubMed",
+        "base_url": "https://huggingface.co/datasets/uiyunkim-hub/pubmed-abstract/resolve/refs%2Fconvert%2Fparquet/default/train",
+        "source_files": [f"{i:04d}.parquet" for i in range(52)],
+        "text_column": "abstract",  # NOTE: source column is "abstract", written as "text" in output shards
+        "extra_columns": ["pmid"],
+        "min_score": None,
+        "est_source_size_gb": 0.28,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -393,6 +402,7 @@ Available datasets:
     fineweb             FineWeb unfiltered 10BT sample (no quality filter)
     github-code-python  GitHub Code Clean, Python subset (645K files)
     slimpajama-627b     SlimPajama full 627B tokens (300 GB download!)
+    pubmed-abstract     PubMed Abstracts: 27.7M biomedical abstracts
 
 Examples:
   uv run convert_dataset.py fineweb-edu
