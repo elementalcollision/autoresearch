@@ -331,7 +331,7 @@ WEIGHT_DECAY = 0.1
 ADAM_BETAS = (0.67, 0.95)
 WARMUP_RATIO = 0.0
 WARMDOWN_RATIO = 0.65
-FINAL_LR_FRAC = 0.1
+FINAL_LR_FRAC = 0.02
 
 # Model size
 DEPTH = _hp_defaults['depth']
