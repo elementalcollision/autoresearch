@@ -323,7 +323,7 @@ WINDOW_PATTERN = "SSSS"
 
 # Optimization
 TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
-EMBEDDING_LR = 0.30
+EMBEDDING_LR = 0.60
 UNEMBEDDING_LR = 0.006
 MATRIX_LR = 0.068
 SCALAR_LR = 0.13
