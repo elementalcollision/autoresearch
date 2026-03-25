@@ -317,16 +317,16 @@ _hw_info = get_hardware_info()
 _hp_defaults = suggest_hyperparameters(_hw_info)
 
 # Model architecture
-ASPECT_RATIO = 32
+ASPECT_RATIO = 64
 HEAD_DIM = 128
 WINDOW_PATTERN = "SSSL"
 
 # Optimization
 TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
-EMBEDDING_LR = 0.4
+EMBEDDING_LR = 0.6
 UNEMBEDDING_LR = 0.004
-MATRIX_LR = 0.05
-SCALAR_LR = 0.51
+MATRIX_LR = 0.04
+SCALAR_LR = 0.5
 WEIGHT_DECAY = 0.2
 ADAM_BETAS = (0.8, 0.95)
 WARMUP_RATIO = 0.0
