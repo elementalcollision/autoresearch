@@ -319,7 +319,7 @@ _hp_defaults = suggest_hyperparameters(_hw_info)
 # Model architecture
 ASPECT_RATIO = 19
 HEAD_DIM = 128
-WINDOW_PATTERN = "SSSL"
+WINDOW_PATTERN = "SLLL"
 
 # Optimization
 TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
