@@ -317,25 +317,25 @@ _hw_info = get_hardware_info()
 _hp_defaults = suggest_hyperparameters(_hw_info)
 
 # Model architecture
-ASPECT_RATIO = 64
-HEAD_DIM = 128
-WINDOW_PATTERN = "SSSL"
+ASPECT_RATIO = _hp_defaults.get('aspect_ratio', 64)
+HEAD_DIM = _hp_defaults.get('head_dim', 128)
+WINDOW_PATTERN = _hp_defaults.get('window_pattern', "SSSL")
 
 # Optimization
 TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
-EMBEDDING_LR = 0.6
-UNEMBEDDING_LR = 0.004
-MATRIX_LR = 0.04
-SCALAR_LR = 0.5
-WEIGHT_DECAY = 0.2
-ADAM_BETAS = (0.8, 0.95)
-WARMUP_RATIO = 0.0
-WARMDOWN_RATIO = 0.5
-FINAL_LR_FRAC = 0.0
+EMBEDDING_LR = _hp_defaults.get('embedding_lr', 0.6)
+UNEMBEDDING_LR = _hp_defaults.get('unembedding_lr', 0.004)
+MATRIX_LR = _hp_defaults.get('matrix_lr', 0.04)
+SCALAR_LR = _hp_defaults.get('scalar_lr', 0.5)
+WEIGHT_DECAY = _hp_defaults.get('weight_decay', 0.2)
+ADAM_BETAS = _hp_defaults.get('adam_betas', (0.8, 0.95))
+WARMUP_RATIO = _hp_defaults.get('warmup_ratio', 0.0)
+WARMDOWN_RATIO = _hp_defaults.get('warmdown_ratio', 0.5)
+FINAL_LR_FRAC = _hp_defaults.get('final_lr_frac', 0.0)
 
 # Model size
 DEPTH = _hp_defaults['depth']
-DEVICE_BATCH_SIZE = 4
+DEVICE_BATCH_SIZE = 8
 
 # ---------------------------------------------------------------------------
 # Setup
