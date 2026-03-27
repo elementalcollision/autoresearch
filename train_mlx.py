@@ -323,7 +323,7 @@ WINDOW_PATTERN = _hp_defaults.get('window_pattern', "SSSL")
 
 # Optimization
 TOTAL_BATCH_SIZE = _hp_defaults['total_batch_size']
-EMBEDDING_LR = _hp_defaults.get('embedding_lr', 0.6)
+EMBEDDING_LR = 0.4
 UNEMBEDDING_LR = _hp_defaults.get('unembedding_lr', 0.004)
 MATRIX_LR = 0.054
 SCALAR_LR = 0.45
